@@ -78,5 +78,7 @@ Keep the default context lean. For deeper guidance, consult:
 - .zed/rules/api-supabase-astro-init.md
 - .zed/rules/ui-shadcn-helper.md
 - .zed/rules/shared.md
+- .zed/rules/conventional-commits.md
+
 
 These contain detailed, editor-agnostic guidance to reference when relevant.
