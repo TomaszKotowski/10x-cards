@@ -1,0 +1,82 @@
+# Workshop Rules for 10x-cards (Zed)
+
+Keep responses concise and high-signal. Prefer minimal context; ask focused clarifying questions when needed. Propose small, incremental changes with clear file paths and reasoning. Handle errors and edge cases first (guard clauses, early returns), then the happy path.
+
+This file is optimized for Zed’s token budget and complements the more detailed Windsurf rules kept in `.windsurfrules`. For deeper, topic-specific guidance, consult the files under `.zed/rules/`.
+
+## Tech Stack
+- Astro 5
+- TypeScript 5
+- React 19
+- Tailwind 4
+- shadcn/ui
+- Supabase
+
+## Project Structure (authoritative)
+- ./src – source code
+- ./src/layouts – Astro layouts
+- ./src/pages – Astro pages
+- ./src/pages/api – API endpoints
+- ./src/middleware/index.ts – Astro middleware
+- ./src/db – Supabase clients and types
+- ./src/types.ts – Shared types for backend and frontend (Entities, DTOs)
+- ./src/components – Client-side components (Astro for static, React for interactivity)
+- ./src/components/ui – shadcn/ui components
+- ./src/lib – Services and helpers
+- ./src/assets – internal static assets
+- ./public – public assets
+
+If the structure changes, update this section first.
+
+## Coding Practices
+- Start with precondition checks; return early on invalid states. Avoid deep nesting and unnecessary else branches.
+- Validate all external inputs with Zod (API, forms, DB).
+- Implement consistent error logging and user-friendly messages. Prefer custom error types/factories.
+- Follow linters. Favor clarity and maintainability over brevity.
+
+## Frontend
+- Use Astro (.astro) for static content/layout; use React only when interactivity is needed.
+- Tailwind: organize with @layer; allow arbitrary values (e.g., w-[123px]); use theme() in CSS; support dark: variant; apply responsive (sm:/md:/lg:) and state variants (hover:/focus-visible:/active:).
+- Accessibility (ARIA):
+  - Use landmarks (main, nav, etc.).
+  - Apply roles for custom widgets lacking semantic HTML.
+  - Set aria-expanded/aria-controls for expandables.
+  - Use aria-live appropriately.
+  - Hide decorative content with aria-hidden.
+  - Use aria-label/aria-labelledby and aria-describedby where needed.
+  - Set aria-current for the active item.
+  - Avoid redundant ARIA that duplicates native semantics.
+
+## Astro
+- Use content collections for typed content; Server Endpoints for APIs.
+- API routes: uppercase method exports (e.g., export async function POST() {}) and export const prerender = false.
+- Validate inputs with Zod.
+- Extract logic into services under src/lib/services.
+- Use middleware for request/response modifications.
+- Use Astro Image integration for optimization.
+- Employ hybrid/SSR rendering where beneficial.
+- Use Astro.cookies for server-side cookie management.
+- Access environment via import.meta.env.
+
+## React
+- Functional components with hooks; do not use Next.js directives (e.g., "use client").
+- Extract logic into custom hooks in src/components/hooks.
+- Performance: React.memo (stable, expensive props), React.lazy + Suspense, useCallback for handlers, useMemo for expensive calculations, useId for a11y, consider useOptimistic for forms, useTransition for non-urgent updates.
+
+## Backend & Database
+- Use Supabase for auth and data; follow Supabase security/performance best practices.
+- Validate data with Zod before DB operations.
+- In Astro routes, use locals.supabase (do not import a global client directly).
+- Use SupabaseClient type from src/db/supabase.client.ts (not from @supabase/supabase-js).
+
+## Using Topic Rules in Zed
+Keep the default context lean. For deeper guidance, consult:
+- .zed/rules/frontend.md
+- .zed/rules/react.md
+- .zed/rules/astro.md
+- .zed/rules/db-supabase-migrations.md
+- .zed/rules/api-supabase-astro-init.md
+- .zed/rules/ui-shadcn-helper.md
+- .zed/rules/shared.md
+
+These contain detailed, editor-agnostic guidance to reference when relevant.
