@@ -1,269 +1,198 @@
-# Schemat bazy danych PostgreSQL - 10x-cards MVP
+# Schemat Bazy Danych PostgreSQL – 10x-cards
+
+Dokument opisuje finalny schemat bazy danych dla projektu 10x-cards MVP, uwzględniający wymagania z PRD, decyzje z sesji planowania oraz stack technologiczny (Supabase self-hosted).
 
 ## 1. Tabele
 
-### 1.1 users
-Tabela zarządzana przez Supabase Auth (GoTrue). Nie wymaga tworzenia migracji - istnieje w schemacie `auth.users`.
+### 1.1 `auth.users`
 
-**Referencje w aplikacji:**
-- `id` (uuid) - używane jako `user_id` w innych tabelach
-- `email` (text)
-- `created_at` (timestamptz)
+Tabela zarządzana przez Supabase GoTrue. Zawiera dane uwierzytelniające użytkowników.
 
----
+**Uwaga:** Nie tworzymy tej tabeli ręcznie – jest częścią Supabase Auth.
 
-### 1.2 decks
-
-Tabela przechowująca talie kart użytkownika.
-
-| Kolumna | Typ | Ograniczenia | Opis |
-|---------|-----|--------------|------|
-| `id` | uuid | PRIMARY KEY, DEFAULT gen_random_uuid() | Stały identyfikator talii (deck_id) |
-| `user_id` | uuid | NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE | Właściciel talii |
-| `name` | text | NOT NULL, CHECK (char_length(name) >= 1 AND char_length(name) <= 200) | Nazwa talii, unikalna per użytkownik (z wyłączeniem soft-deleted) |
-| `slug` | text | NOT NULL | URL-friendly slug generowany z name, aktualizowany przy zmianie nazwy |
-| `status` | text | NOT NULL, DEFAULT 'draft', CHECK (status IN ('draft', 'published')) | Status talii |
-| `created_at` | timestamptz | NOT NULL, DEFAULT now() | Data utworzenia |
-| `updated_at` | timestamptz | NOT NULL, DEFAULT now() | Data ostatniej aktualizacji |
-| `published_at` | timestamptz | NULL | Data publikacji (NULL dla draft) |
-| `deleted_at` | timestamptz | NULL | Soft delete timestamp (NULL = aktywna) |
-
-**Notatki:**
-- `slug` jest generowany automatycznie z `name` (lowercase, zamieniając spacje i polskie znaki na ascii-friendly)
-- Unikalność nazwy wymuszana indeksem częściowym (patrz sekcja Indeksy)
-- Po publikacji talia i jej karty są read-only (logika aplikacji)
+Kluczowe kolumny używane w relacjach:
+- `id` – UUID, Primary Key
+- `email` – TEXT, unikalny
+- `created_at` – TIMESTAMPTZ
+- `updated_at` – TIMESTAMPTZ
 
 ---
 
-### 1.3 cards
+### 1.2 `decks`
 
-Tabela przechowująca karty w taliach.
+Tabela przechowująca talie fiszek. Każda talia należy do jednego użytkownika.
 
 | Kolumna | Typ | Ograniczenia | Opis |
 |---------|-----|--------------|------|
-| `id` | uuid | PRIMARY KEY, DEFAULT gen_random_uuid() | Identyfikator karty |
-| `deck_id` | uuid | NOT NULL, REFERENCES decks(id) ON DELETE CASCADE | Talia, do której należy karta |
-| `front` | text | NOT NULL, CHECK (char_length(front) >= 1 AND char_length(front) <= 200) | Pytanie (front karty), max 200 znaków |
-| `back` | text | NOT NULL, CHECK (char_length(back) >= 1 AND char_length(back) <= 200) | Odpowiedź (back karty), max 200 znaków |
-| `position` | integer | NOT NULL, DEFAULT 0 | Kolejność karty w talii (do sortowania) |
-| `created_at` | timestamptz | NOT NULL, DEFAULT now() | Data utworzenia karty |
-| `updated_at` | timestamptz | NOT NULL, DEFAULT now() | Data ostatniej aktualizacji |
+| `id` | UUID | PRIMARY KEY, DEFAULT gen_random_uuid() | Unikalny identyfikator talii |
+| `user_id` | UUID | NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE | Właściciel talii |
+| `name` | CITEXT | NOT NULL, CHECK (char_length(name) BETWEEN 1 AND 100) | Nazwa talii (case-insensitive) |
+| `slug` | TEXT | NOT NULL | Slug URL generowany z nazwy |
+| `status` | TEXT | NOT NULL DEFAULT 'draft', CHECK (status IN ('draft', 'published', 'rejected')) | Status talii |
+| `published_at` | TIMESTAMPTZ | NULL | Timestamp publikacji (NULL dla draft) |
+| `rejected_at` | TIMESTAMPTZ | NULL | Timestamp odrzucenia |
+| `rejected_reason` | TEXT | NULL, CHECK (rejected_reason IS NULL OR char_length(rejected_reason) <= 500) | Powód odrzucenia |
+| `deleted_at` | TIMESTAMPTZ | NULL | Soft delete timestamp |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Timestamp utworzenia |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Timestamp ostatniej modyfikacji |
 
-**Notatki:**
-- Brak soft delete dla kart - usunięcie fizyczne w Draft, brak usuwania po publikacji
-- Limity 200 znaków wymuszane przez CHECK constraints
-- `position` używane do utrzymania kolejności kart w talii (edycja) i losowania w sesji nauki
+**Ograniczenia biznesowe:**
+- Po publikacji (`status = 'published'`) talia jest read-only (wymuszane przez RLS i logikę aplikacji)
+- Nazwa talii (`name`) musi być unikalna per użytkownik (z uwzględnieniem soft-delete)
+- `published_at` jest wymagane, gdy `status = 'published'`
+- `rejected_at` i `rejected_reason` są używane, gdy `status = 'rejected'`
 
 ---
 
-### 1.4 generation_sessions
+### 1.3 `cards`
 
-Tabela przechowująca sesje generacji AI.
+Tabela przechowująca pojedyncze fiszki należące do talii.
 
 | Kolumna | Typ | Ograniczenia | Opis |
 |---------|-----|--------------|------|
-| `id` | uuid | PRIMARY KEY, DEFAULT gen_random_uuid() | Identyfikator sesji generacji |
-| `user_id` | uuid | NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE | Użytkownik inicjujący generację |
-| `deck_id` | uuid | NULL, REFERENCES decks(id) ON DELETE SET NULL | Talia docelowa (może być NULL jeśli talia usunięta) |
-| `source_text` | text | NOT NULL, CHECK (char_length(source_text) >= 1 AND char_length(source_text) <= 10000) | Oryginalny tekst wejściowy |
-| `sanitized_source_text` | text | NOT NULL, CHECK (char_length(sanitized_source_text) >= 1 AND char_length(sanitized_source_text) <= 10000) | Tekst po sanityzacji (usunięcie zbędnych spacji/HTML) |
-| `status` | text | NOT NULL, DEFAULT 'in_progress', CHECK (status IN ('in_progress', 'completed', 'failed', 'timeout')) | Status generacji |
-| `parameters` | jsonb | NULL | Parametry wywołania LLM (model, temperatura, etc.) |
-| `cards_generated` | integer | NULL | Liczba kart zwróconych przez model |
-| `cards_saved` | integer | NULL | Liczba kart faktycznie zapisanych (max 20) |
-| `was_truncated` | boolean | NOT NULL, DEFAULT false | Czy wynik został przycięty (model zwrócił >20 kart) |
-| `error_message` | text | NULL | Komunikat błędu (jeśli status = failed/timeout) |
-| `started_at` | timestamptz | NOT NULL, DEFAULT now() | Timestamp rozpoczęcia |
-| `completed_at` | timestamptz | NULL | Timestamp zakończenia (powodzenie/błąd/timeout) |
-| `created_at` | timestamptz | NOT NULL, DEFAULT now() | Data utworzenia rekordu |
+| `id` | UUID | PRIMARY KEY, DEFAULT gen_random_uuid() | Unikalny identyfikator karty |
+| `deck_id` | UUID | NOT NULL, REFERENCES decks(id) ON DELETE CASCADE | Talia, do której należy karta |
+| `front` | TEXT | NOT NULL, CHECK (char_length(front) BETWEEN 1 AND 200) | Przednia strona (pytanie) |
+| `back` | TEXT | NOT NULL, CHECK (char_length(back) BETWEEN 1 AND 200) | Tylna strona (odpowiedź) |
+| `position` | INTEGER | NOT NULL, CHECK (position > 0) | Pozycja karty w talii (1-based) |
+| `hint` | TEXT | NULL, CHECK (hint IS NULL OR char_length(hint) <= 200) | Opcjonalna podpowiedź (zarezerwowane na przyszłość) |
+| `is_active` | BOOLEAN | NOT NULL DEFAULT TRUE | Czy karta jest aktywna (zarezerwowane na przyszłość) |
+| `locale` | TEXT | NULL, CHECK (locale IS NULL OR char_length(locale) <= 10) | Język karty (np. 'pl', 'en') – zarezerwowane |
+| `metadata` | JSONB | NULL | Dodatkowe metadane (elastyczne pole) |
+| `deleted_at` | TIMESTAMPTZ | NULL | Soft delete timestamp |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Timestamp utworzenia |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Timestamp ostatniej modyfikacji |
 
-**Notatki:**
-- `source_text` przechowuje oryginalny input użytkownika
-- `sanitized_source_text` przechowuje tekst po sanityzacji przed wysyłką do LLM
-- Indeks częściowy wymusza jedną równoległą generację per użytkownik (status = 'in_progress')
-- Timeout 5 minut obsługiwany przez backend (worker/cron aktualizuje status po timeout)
-- `was_truncated` = true gdy model zwrócił więcej niż 20 kart
+**Ograniczenia biznesowe:**
+- Pozycja (`position`) musi być unikalna w obrębie talii (z uwzględnieniem soft-delete)
+- Maksymalnie 20 kart może być opublikowanych w talii (wymuszane podczas publikacji)
+- Karty w opublikowanych taliach są read-only
+
+---
+
+### 1.4 `generation_sessions`
+
+Tabela przechowująca sesje generacji AI. Każda sesja jest powiązana z jedną talią (relacja 1:1).
+
+| Kolumna | Typ | Ograniczenia | Opis |
+|---------|-----|--------------|------|
+| `id` | UUID | PRIMARY KEY, DEFAULT gen_random_uuid() | Unikalny identyfikator sesji |
+| `user_id` | UUID | NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE | Użytkownik inicjujący generację |
+| `deck_id` | UUID | NOT NULL, UNIQUE, REFERENCES decks(id) ON DELETE CASCADE | Talia powiązana z generacją (1:1) |
+| `status` | TEXT | NOT NULL DEFAULT 'in_progress', CHECK (status IN ('in_progress', 'completed', 'failed', 'timeout')) | Status generacji |
+| `params` | JSONB | NULL | Parametry użyte do generacji (model, temperatura, itp.) |
+| `sanitized_source_text` | TEXT | NOT NULL, CHECK (char_length(sanitized_source_text) <= 10000) | Oczyszczony tekst źródłowy użyty do generacji |
+| `truncated_count` | SMALLINT | NULL, CHECK (truncated_count >= 0) | Liczba kart usuniętych z wyniku LLM (jeśli >20) |
+| `error_code` | TEXT | NULL | Kod błędu (jeśli status = 'failed') |
+| `error_message` | TEXT | NULL, CHECK (error_message IS NULL OR char_length(error_message) <= 1000) | Szczegóły błędu |
+| `started_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Timestamp rozpoczęcia generacji |
+| `finished_at` | TIMESTAMPTZ | NULL | Timestamp zakończenia generacji |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Timestamp utworzenia rekordu |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT NOW() | Timestamp ostatniej modyfikacji |
+
+**Ograniczenia biznesowe:**
+- Użytkownik może mieć maksymalnie jedną aktywną sesję generacji (`status = 'in_progress'`) – wymuszane przez częściowy indeks unikalny
+- Każda talia może mieć maksymalnie jedną sesję generacji (UNIQUE na `deck_id`)
+- Timeout generacji: 5 minut (wymuszane przez logikę aplikacji)
 
 ---
 
 ## 2. Relacje między tabelami
 
-### 2.1 Relacje jeden-do-wielu (1:N)
+### 2.1 Diagram relacji
 
-**users → decks**
-- Kardynalność: Jeden użytkownik może mieć wiele talii
-- Klucz obcy: `decks.user_id` → `auth.users.id`
-- Kaskadowe usuwanie: ON DELETE CASCADE (usunięcie użytkownika usuwa talie)
+```
+auth.users (1) ──────< (N) decks
+    │                      │
+    │                      │ (1:1)
+    │                      └──────< generation_sessions
+    │
+    └─────────────────< (N) generation_sessions
 
-**users → generation_sessions**
-- Kardynalność: Jeden użytkownik może mieć wiele sesji generacji
-- Klucz obcy: `generation_sessions.user_id` → `auth.users.id`
-- Kaskadowe usuwanie: ON DELETE CASCADE
+decks (1) ──────< (N) cards
+```
 
-**decks → cards**
-- Kardynalność: Jedna talia może mieć wiele kart (max 20 w MVP)
-- Klucz obcy: `cards.deck_id` → `decks.id`
-- Kaskadowe usuwanie: ON DELETE CASCADE (usunięcie talii usuwa karty)
+### 2.2 Opis relacji
 
-**decks → generation_sessions**
-- Kardynalność: Jedna talia może być powiązana z wieloma sesjami generacji (regeneracja, historia)
-- Klucz obcy: `generation_sessions.deck_id` → `decks.id`
-- Akcja przy usunięciu: ON DELETE SET NULL (zachowanie historii generacji)
+| Relacja | Kardynalność | Typ | Szczegóły |
+|---------|--------------|-----|-----------|
+| `auth.users` → `decks` | 1:N | Jeden-do-wielu | Użytkownik może mieć wiele talii |
+| `auth.users` → `generation_sessions` | 1:N | Jeden-do-wielu | Użytkownik może mieć wiele sesji generacji (w czasie) |
+| `decks` → `cards` | 1:N | Jeden-do-wielu | Talia zawiera wiele kart |
+| `decks` → `generation_sessions` | 1:1 | Jeden-do-jednego | Każda talia ma dokładnie jedną sesję generacji |
+
+**Uwagi:**
+- Wszystkie relacje używają `ON DELETE CASCADE` dla automatycznego czyszczenia powiązanych rekordów
+- Relacja 1:1 między `decks` i `generation_sessions` wymuszana przez UNIQUE constraint na `generation_sessions.deck_id`
 
 ---
 
 ## 3. Indeksy
 
-### 3.1 Indeksy podstawowe (klucze główne)
+### 3.1 Indeksy podstawowe (automatyczne)
 
-Automatycznie tworzone dla PRIMARY KEY:
-- `decks.id`
-- `cards.id`
-- `generation_sessions.id`
+Następujące indeksy są tworzone automatycznie przez PostgreSQL:
 
-### 3.2 Indeksy na kluczach obcych
+- Primary Keys: `decks(id)`, `cards(id)`, `generation_sessions(id)`
+- Unique constraints: `generation_sessions(deck_id)`
 
-```sql
--- Wydajne zapytania dla talii użytkownika
-CREATE INDEX idx_decks_user_id ON decks(user_id);
+### 3.2 Indeksy wydajnościowe
 
--- Wydajne zapytania dla kart w talii
-CREATE INDEX idx_cards_deck_id ON cards(deck_id);
+| Tabela | Indeks | Typ | Cel |
+|--------|--------|-----|-----|
+| `decks` | `idx_decks_user_id_status_updated` | B-tree | Szybkie listowanie talii użytkownika z filtrowaniem po statusie i sortowaniem |
+| `decks` | `idx_decks_user_name_unique` | Częściowy unikalny | Wymuszenie unikalności nazwy talii per użytkownik (tylko nieusunięte) |
+| `decks` | `idx_decks_slug` | B-tree | Szybkie wyszukiwanie talii po slug (routing URL) |
+| `cards` | `idx_cards_deck_id_position` | B-tree | Szybkie pobieranie kart w kolejności dla danej talii |
+| `cards` | `idx_cards_deck_position_unique` | Częściowy unikalny | Wymuszenie unikalności pozycji w talii (tylko nieusunięte) |
+| `generation_sessions` | `idx_gen_sessions_user_created` | B-tree | Listowanie historii generacji użytkownika |
+| `generation_sessions` | `idx_gen_sessions_user_in_progress` | Częściowy unikalny | Wymuszenie maksymalnie 1 aktywnej generacji per użytkownik |
 
--- Wydajne zapytania dla sesji generacji użytkownika
-CREATE INDEX idx_generation_sessions_user_id ON generation_sessions(user_id);
-
--- Wydajne zapytania dla sesji generacji powiązanych z talią
-CREATE INDEX idx_generation_sessions_deck_id ON generation_sessions(deck_id) WHERE deck_id IS NOT NULL;
-```
-
-### 3.3 Indeksy funkcjonalne i częściowe
+### 3.3 Definicje SQL indeksów
 
 ```sql
--- Unikalność nazwy talii per użytkownik z wyłączeniem soft-deleted
-CREATE UNIQUE INDEX idx_decks_user_name_unique ON decks(user_id, lower(name)) 
+-- Decks: listowanie i sortowanie
+CREATE INDEX idx_decks_user_id_status_updated
+ON decks(user_id, status, updated_at DESC)
 WHERE deleted_at IS NULL;
 
--- Slug dla szybkiego dostępu URL (z wyłączeniem soft-deleted)
-CREATE INDEX idx_decks_slug ON decks(slug) WHERE deleted_at IS NULL;
+-- Decks: unikalność nazwy per użytkownik (tylko aktywne)
+CREATE UNIQUE INDEX idx_decks_user_name_unique
+ON decks(user_id, LOWER(name))
+WHERE deleted_at IS NULL;
 
--- Jedna równoległa generacja per użytkownik
-CREATE UNIQUE INDEX idx_generation_sessions_one_in_progress_per_user 
-ON generation_sessions(user_id) 
+-- Decks: routing po slug
+CREATE INDEX idx_decks_slug
+ON decks(slug)
+WHERE deleted_at IS NULL;
+
+-- Cards: pobieranie kart w kolejności
+CREATE INDEX idx_cards_deck_id_position
+ON cards(deck_id, position)
+WHERE deleted_at IS NULL;
+
+-- Cards: unikalność pozycji w talii (tylko aktywne)
+CREATE UNIQUE INDEX idx_cards_deck_position_unique
+ON cards(deck_id, position)
+WHERE deleted_at IS NULL;
+
+-- Generation Sessions: historia użytkownika
+CREATE INDEX idx_gen_sessions_user_created
+ON generation_sessions(user_id, created_at DESC);
+
+-- Generation Sessions: tylko jedna aktywna generacja per użytkownik
+CREATE UNIQUE INDEX idx_gen_sessions_user_in_progress
+ON generation_sessions(user_id)
 WHERE status = 'in_progress';
-
--- Wydajne filtrowanie aktywnych talii
-CREATE INDEX idx_decks_active ON decks(user_id, status) WHERE deleted_at IS NULL;
-
--- Wydajne filtrowanie opublikowanych talii dla nauki
-CREATE INDEX idx_decks_published ON decks(user_id) 
-WHERE status = 'published' AND deleted_at IS NULL;
-
--- Sortowanie kart w talii po pozycji
-CREATE INDEX idx_cards_deck_position ON cards(deck_id, position);
-```
-
-**Uzasadnienie indeksów częściowych:**
-- `idx_decks_user_name_unique`: Wymusza unikalność nazwy tylko dla aktywnych talii (deleted_at IS NULL), case-insensitive przez `lower(name)`
-- `idx_generation_sessions_one_in_progress_per_user`: Zapobiega równoległym generacjom per użytkownik - constraint na poziomie DB
-- Pozostałe indeksy częściowe optymalizują zapytania eliminując soft-deleted rekordy
-
----
-
-## 4. Triggery i funkcje
-
-### 4.1 Automatyczna aktualizacja updated_at
-
-```sql
--- Funkcja do aktualizacji updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger dla decks
-CREATE TRIGGER update_decks_updated_at 
-BEFORE UPDATE ON decks
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-
--- Trigger dla cards
-CREATE TRIGGER update_cards_updated_at 
-BEFORE UPDATE ON cards
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
-```
-
-### 4.2 Automatyczne generowanie slug
-
-```sql
--- Funkcja do generowania slug z nazwy talii
-CREATE OR REPLACE FUNCTION generate_slug(name text)
-RETURNS text AS $$
-DECLARE
-    slug text;
-BEGIN
-    -- Konwersja do lowercase, zamiana polskich znaków, usunięcie niepożądanych
-    slug := lower(name);
-    slug := translate(slug, 
-        'ąćęłńóśźżĄĆĘŁŃÓŚŹŻ', 
-        'acelnoszz­acelnoszz');
-    -- Zamiana spacji i znaków specjalnych na myślnik
-    slug := regexp_replace(slug, '[^a-z0-9]+', '-', 'g');
-    -- Usunięcie myślników z początku i końca
-    slug := trim(both '-' from slug);
-    
-    RETURN slug;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-
--- Trigger do automatycznego ustawiania slug przy INSERT i UPDATE
-CREATE OR REPLACE FUNCTION set_deck_slug()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.slug := generate_slug(NEW.name);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER set_deck_slug_trigger
-BEFORE INSERT OR UPDATE OF name ON decks
-FOR EACH ROW
-EXECUTE FUNCTION set_deck_slug();
-```
-
-### 4.3 Aktualizacja published_at przy publikacji
-
-```sql
--- Funkcja do ustawiania published_at przy zmianie statusu na published
-CREATE OR REPLACE FUNCTION set_published_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.status = 'published' AND (OLD.status IS NULL OR OLD.status != 'published') THEN
-        NEW.published_at := now();
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER set_published_at_trigger
-BEFORE UPDATE OF status ON decks
-FOR EACH ROW
-EXECUTE FUNCTION set_published_at();
 ```
 
 ---
 
-## 5. Polityki Row Level Security (RLS) - Plan na później
+## 4. Polityki Row Level Security (RLS)
 
-**Status MVP:** RLS wyłączone w MVP. Autoryzacja i izolacja danych obsługiwana na poziomie aplikacji (middleware Astro + Supabase client).
+RLS jest włączone na wszystkich tabelach użytkownika. Strategia: **deny-by-default** – brak dostępu, chyba że polityka jawnie przyznaje uprawnienia.
 
-**Plan implementacji (po MVP):**
-
-### 5.1 Włączenie RLS
+### 4.1 Włączenie RLS
 
 ```sql
 ALTER TABLE decks ENABLE ROW LEVEL SECURITY;
@@ -271,259 +200,527 @@ ALTER TABLE cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE generation_sessions ENABLE ROW LEVEL SECURITY;
 ```
 
-### 5.2 Polityki dla decks
+### 4.2 Polityki dla tabeli `decks`
+
+#### SELECT (odczyt)
+Użytkownik może odczytać swoje talie (wszystkie statusy), które nie są usunięte.
 
 ```sql
--- Użytkownik widzi tylko swoje talie (z wyłączeniem soft-deleted)
-CREATE POLICY decks_select_own ON decks
-FOR SELECT
-USING (auth.uid() = user_id AND deleted_at IS NULL);
+CREATE POLICY "Users can view their own decks"
+ON decks FOR SELECT
+USING (
+  user_id = auth.uid()
+  AND deleted_at IS NULL
+);
+```
 
--- Użytkownik może tworzyć swoje talie
-CREATE POLICY decks_insert_own ON decks
-FOR INSERT
-WITH CHECK (auth.uid() = user_id);
+#### INSERT (tworzenie)
+Użytkownik może tworzyć nowe talie ze sobą jako właścicielem.
 
--- Użytkownik może aktualizować swoje talie draft
-CREATE POLICY decks_update_own_draft ON decks
-FOR UPDATE
-USING (auth.uid() = user_id AND status = 'draft');
-
--- Użytkownik może publikować swoje talie draft
-CREATE POLICY decks_publish_own ON decks
-FOR UPDATE
-USING (auth.uid() = user_id)
+```sql
+CREATE POLICY "Users can create their own decks"
+ON decks FOR INSERT
 WITH CHECK (
-    (OLD.status = 'draft' AND NEW.status = 'published') OR
-    (OLD.status = NEW.status)
+  user_id = auth.uid()
+  AND status = 'draft'
+  AND deleted_at IS NULL
 );
-
--- Użytkownik może soft-delete swoje talie
-CREATE POLICY decks_delete_own ON decks
-FOR UPDATE
-USING (auth.uid() = user_id AND deleted_at IS NULL)
-WITH CHECK (deleted_at IS NOT NULL);
 ```
 
-### 5.3 Polityki dla cards
+#### UPDATE (edycja)
+Użytkownik może edytować tylko swoje talie w statusie `draft`.
 
 ```sql
--- Użytkownik widzi karty ze swoich talii
-CREATE POLICY cards_select_own ON cards
-FOR SELECT
+CREATE POLICY "Users can update their own draft decks"
+ON decks FOR UPDATE
 USING (
-    EXISTS (
-        SELECT 1 FROM decks 
-        WHERE decks.id = cards.deck_id 
-        AND decks.user_id = auth.uid()
-        AND decks.deleted_at IS NULL
-    )
-);
-
--- Użytkownik może dodawać karty do swoich draft talii
-CREATE POLICY cards_insert_own_draft ON cards
-FOR INSERT
+  user_id = auth.uid()
+  AND status = 'draft'
+  AND deleted_at IS NULL
+)
 WITH CHECK (
-    EXISTS (
-        SELECT 1 FROM decks 
-        WHERE decks.id = cards.deck_id 
-        AND decks.user_id = auth.uid()
-        AND decks.status = 'draft'
-        AND decks.deleted_at IS NULL
-    )
-);
-
--- Użytkownik może edytować karty w swoich draft taliach
-CREATE POLICY cards_update_own_draft ON cards
-FOR UPDATE
-USING (
-    EXISTS (
-        SELECT 1 FROM decks 
-        WHERE decks.id = cards.deck_id 
-        AND decks.user_id = auth.uid()
-        AND decks.status = 'draft'
-        AND decks.deleted_at IS NULL
-    )
-);
-
--- Użytkownik może usuwać karty ze swoich draft talii
-CREATE POLICY cards_delete_own_draft ON cards
-FOR DELETE
-USING (
-    EXISTS (
-        SELECT 1 FROM decks 
-        WHERE decks.id = cards.deck_id 
-        AND decks.user_id = auth.uid()
-        AND decks.status = 'draft'
-        AND decks.deleted_at IS NULL
-    )
+  user_id = auth.uid()
+  AND deleted_at IS NULL
 );
 ```
 
-### 5.4 Polityki dla generation_sessions
+#### DELETE (soft-delete)
+Użytkownik może usuwać (soft-delete) swoje talie w dowolnym statusie.
 
 ```sql
--- Użytkownik widzi tylko swoje sesje generacji
-CREATE POLICY generation_sessions_select_own ON generation_sessions
-FOR SELECT
-USING (auth.uid() = user_id);
-
--- Użytkownik może tworzyć swoje sesje generacji
-CREATE POLICY generation_sessions_insert_own ON generation_sessions
-FOR INSERT
-WITH CHECK (auth.uid() = user_id);
-
--- Tylko backend/service_role może aktualizować status generacji
-CREATE POLICY generation_sessions_update_backend ON generation_sessions
-FOR UPDATE
-USING (false); -- Aplikacja używa service_role client
-```
-
-**Notatki na później:**
-- Polityki wymuszają izolację danych per użytkownik na poziomie DB
-- Read-only dostęp do published talii wymuszony przez brak polityk UPDATE/DELETE
-- Backend używa `service_role` client do aktualizacji `generation_sessions` (bypass RLS)
-- Implementacja RLS wraz z pełnym audytem po MVP
-
----
-
-## 6. Ograniczenia aplikacyjne i walidacje
-
-### 6.1 Limity implementowane na poziomie DB (CHECK constraints)
-
-- **Karty:** max 200 znaków na `front` i `back`
-- **Tekst wejściowy:** max 10 000 znaków na `source_text` i `sanitized_source_text`
-- **Nazwa talii:** 1-200 znaków
-- **Status talii:** tylko 'draft' lub 'published'
-- **Status generacji:** tylko 'in_progress', 'completed', 'failed', 'timeout'
-
-### 6.2 Limity implementowane na poziomie aplikacji
-
-- **Max 20 kart per talia:** Walidacja przed dodaniem karty (API endpoint)
-- **Jedna równoległa generacja per użytkownik:** Wymuszane przez unikalny indeks częściowy
-- **Timeout generacji 5 minut:** Backend worker/cron aktualizuje status po timeout
-- **Read-only po publikacji:** Logika aplikacji blokuje UPDATE/DELETE dla published decks/cards
-
-### 6.3 Walidacje wielopoziomowe (defense in depth)
-
-Wszystkie limity walidowane w trzech miejscach:
-1. **Frontend (client):** UX - liczniki znaków, blokady formularzy, komunikaty
-2. **Backend (server/API):** Zod validation przed zapisem do DB
-3. **Database:** CHECK constraints jako ostatnia linia obrony
-
----
-
-## 7. Dodatkowe uwagi projektowe
-
-### 7.1 Soft delete
-
-- Tylko talia `decks` ma soft delete (`deleted_at`)
-- Karty nie mają soft delete - fizyczne usuwanie w draft, brak możliwości usunięcia po publikacji
-- Soft-deleted talie są niewidoczne w aplikacji (filtrowanie `WHERE deleted_at IS NULL`)
-- Plan na przyszłość: cron do twardego usuwania starych soft-deleted rekordów
-
-### 7.2 Wydajność zapytań
-
-**Najczęstsze zapytania:**
-1. Lista talii użytkownika (aktywne, draft/published) → `idx_decks_active`, `idx_decks_published`
-2. Karty talii z sortowaniem → `idx_cards_deck_position`
-3. Aktywna sesja generacji użytkownika → `idx_generation_sessions_one_in_progress_per_user`
-4. Dostęp do talii przez slug → `idx_decks_slug`
-
-**Optymalizacje:**
-- Indeksy częściowe eliminują niepotrzebne rekordy
-- Indeksy na klucze obce przyspieszają JOINy
-- Funkcja `generate_slug()` oznaczona IMMUTABLE dla cache'owania
-
-### 7.3 Decyzje projektowe
-
-**Dlaczego ON DELETE CASCADE dla decks → cards?**
-- Karty nie mają znaczenia bez talii
-- Upraszcza soft delete talii (nie trzeba obsługiwać osieroconych kart)
-
-**Dlaczego ON DELETE SET NULL dla decks → generation_sessions?**
-- Historia generacji może być wartościowa dla analityki/debugowania
-- Sesje generacji mogą istnieć niezależnie od talii
-
-**Dlaczego brak soft delete dla cards?**
-- Karty są zawsze powiązane z talią (kaskadowe usunięcie)
-- W published taliach karty są read-only (nie można usunąć)
-- W draft taliach fizyczne usunięcie jest wystarczające
-
-**Dlaczego position zamiast timestamps dla kolejności?**
-- Pozwala na ręczne sortowanie/reorder w przyszłych wersjach
-- Bardziej deterministyczne niż timestamps (brak kolizji przy bulk insert)
-
-### 7.4 Typy danych
-
-- **uuid:** Wszystkie ID (bezpieczne, rozproszone, nie-sekwencyjne)
-- **text:** Dynamiczne stringi (name, front, back, source_text) - PostgreSQL optymalizuje automatycznie
-- **timestamptz:** Wszystkie timestampy (z timezone, UTC w bazie)
-- **jsonb:** Parametry LLM (indexed, queryable, flexible schema)
-- **integer:** Liczniki (position, cards_generated) i flagowe booleans
-- **boolean:** Flagi (was_truncated)
-
-### 7.5 Bezpieczeństwo danych
-
-**MVP (teraz):**
-- Brak szyfrowania kolumn na poziomie DB
-- `sanitized_source_text` przechowywany jako plaintext
-- Autoryzacja na poziomie aplikacji (middleware)
-
-**Później (plan):**
-- RLS ON + polityki (szczegóły w sekcji 5)
-- Ewentualne szyfrowanie `source_text` i `sanitized_source_text` (zależnie od wrażliwości danych)
-- Polityka retencji: automatyczne usuwanie starych `generation_sessions` po X dniach
-- Audit logging: kto, kiedy, co zmodyfikował (trigger-based lub aplikacyjnie)
-
-### 7.6 Migracje
-
-**Kolejność tworzenia:**
-1. Tabela `decks` (zależy tylko od `auth.users`)
-2. Tabela `cards` (zależy od `decks`)
-3. Tabela `generation_sessions` (zależy od `auth.users` i `decks`)
-4. Indeksy (po utworzeniu wszystkich tabel)
-5. Triggery i funkcje (po indeksach)
-6. RLS polityki (później, osobna migracja)
-
-**Naming convention migracji:**
-```
-YYYYMMDDHHMMSS_descriptive_name.sql
-```
-
-Przykład:
-```
-20240115120000_create_decks_table.sql
-20240115120100_create_cards_table.sql
-20240115120200_create_generation_sessions_table.sql
-20240115120300_create_indexes.sql
-20240115120400_create_triggers_and_functions.sql
+CREATE POLICY "Users can soft-delete their own decks"
+ON decks FOR UPDATE
+USING (
+  user_id = auth.uid()
+  AND deleted_at IS NULL
+)
+WITH CHECK (
+  user_id = auth.uid()
+  AND deleted_at IS NOT NULL
+);
 ```
 
 ---
 
-## 8. Podsumowanie schematu
+### 4.3 Polityki dla tabeli `cards`
 
-**Liczba tabel:** 3 (+ auth.users z Supabase)
-- `decks` - talie kart
-- `cards` - karty w taliach  
-- `generation_sessions` - sesje generacji AI
+#### SELECT (odczyt)
+Użytkownik może odczytać karty ze swoich talii.
 
-**Liczba indeksów:** 11
-- 3 PRIMARY KEY (automatyczne)
-- 4 indeksy na klucze obce
-- 4 indeksy częściowe/funkcjonalne (unique constraints, optymalizacje)
+```sql
+CREATE POLICY "Users can view cards from their own decks"
+ON cards FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM decks
+    WHERE decks.id = cards.deck_id
+    AND decks.user_id = auth.uid()
+    AND decks.deleted_at IS NULL
+  )
+  AND cards.deleted_at IS NULL
+);
+```
 
-**Liczba triggerów:** 4
-- 2 dla auto-update `updated_at`
-- 1 dla auto-generate `slug`
-- 1 dla auto-set `published_at`
+#### INSERT (tworzenie)
+Użytkownik może dodawać karty tylko do swoich talii w statusie `draft`.
 
-**Główne constraints:**
-- 7 CHECK constraints (limity znaków, statusy)
-- 2 unikalne indeksy częściowe (nazwa talii, jedna generacja)
-- 4 klucze obce (relacje między tabelami)
+```sql
+CREATE POLICY "Users can insert cards into their draft decks"
+ON cards FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM decks
+    WHERE decks.id = cards.deck_id
+    AND decks.user_id = auth.uid()
+    AND decks.status = 'draft'
+    AND decks.deleted_at IS NULL
+  )
+  AND cards.deleted_at IS NULL
+);
+```
 
-**Status RLS:** Wyłączone w MVP, plan implementacji udokumentowany w sekcji 5.
+#### UPDATE (edycja)
+Użytkownik może edytować karty tylko w swoich taliach w statusie `draft`.
 
-**Kompatybilność:** PostgreSQL 12+ (Supabase), używa standardowych funkcji PG (uuid, jsonb, timestamptz, partial indexes, triggers).
+```sql
+CREATE POLICY "Users can update cards in their draft decks"
+ON cards FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM decks
+    WHERE decks.id = cards.deck_id
+    AND decks.user_id = auth.uid()
+    AND decks.status = 'draft'
+    AND decks.deleted_at IS NULL
+  )
+  AND cards.deleted_at IS NULL
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM decks
+    WHERE decks.id = cards.deck_id
+    AND decks.user_id = auth.uid()
+    AND decks.status = 'draft'
+    AND decks.deleted_at IS NULL
+  )
+  AND cards.deleted_at IS NULL
+);
+```
+
+#### DELETE (soft-delete)
+Użytkownik może usuwać (soft-delete) karty tylko w swoich taliach w statusie `draft`.
+
+```sql
+CREATE POLICY "Users can soft-delete cards in their draft decks"
+ON cards FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM decks
+    WHERE decks.id = cards.deck_id
+    AND decks.user_id = auth.uid()
+    AND decks.status = 'draft'
+    AND decks.deleted_at IS NULL
+  )
+  AND cards.deleted_at IS NULL
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM decks
+    WHERE decks.id = cards.deck_id
+    AND decks.user_id = auth.uid()
+    AND decks.status = 'draft'
+  )
+  AND cards.deleted_at IS NOT NULL
+);
+```
+
+---
+
+### 4.4 Polityki dla tabeli `generation_sessions`
+
+#### SELECT (odczyt)
+Użytkownik może odczytać swoje sesje generacji.
+
+```sql
+CREATE POLICY "Users can view their own generation sessions"
+ON generation_sessions FOR SELECT
+USING (user_id = auth.uid());
+```
+
+#### INSERT (tworzenie)
+Tylko service role lub aplikacja może tworzyć sesje generacji (brak publicznej polityki INSERT dla użytkowników).
+
+```sql
+-- Brak polityki INSERT dla auth.uid()
+-- Sesje tworzone przez backend z service role
+```
+
+#### UPDATE (edycja)
+Tylko service role może aktualizować sesje generacji (zmiana statusu, error, itp.).
+
+```sql
+-- Brak polityki UPDATE dla auth.uid()
+-- Aktualizacje przez backend z service role
+```
+
+---
+
+## 5. Funkcje i Triggery
+
+### 5.1 Trigger: Automatyczna aktualizacja `updated_at`
+
+Automatycznie aktualizuje kolumnę `updated_at` przy każdej modyfikacji rekordu.
+
+```sql
+-- Funkcja triggerowa
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Triggery dla poszczególnych tabel
+CREATE TRIGGER set_updated_at_decks
+BEFORE UPDATE ON decks
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_updated_at_cards
+BEFORE UPDATE ON cards
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER set_updated_at_generation_sessions
+BEFORE UPDATE ON generation_sessions
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+```
+
+---
+
+### 5.2 Trigger: Automatyczna generacja slug z nazwy talii
+
+Generuje slug URL-friendly z nazwy talii przy tworzeniu i aktualizacji.
+
+```sql
+-- Funkcja pomocnicza do generowania slug
+CREATE OR REPLACE FUNCTION slugify(text_input TEXT)
+RETURNS TEXT AS $$
+DECLARE
+  result TEXT;
+BEGIN
+  result := LOWER(TRIM(text_input));
+  result := REGEXP_REPLACE(result, '[^a-z0-9\s-]', '', 'g');
+  result := REGEXP_REPLACE(result, '[\s-]+', '-', 'g');
+  result := TRIM(BOTH '-' FROM result);
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Funkcja triggerowa
+CREATE OR REPLACE FUNCTION generate_deck_slug()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.slug := slugify(NEW.name);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger
+CREATE TRIGGER set_deck_slug
+BEFORE INSERT OR UPDATE OF name ON decks
+FOR EACH ROW
+EXECUTE FUNCTION generate_deck_slug();
+```
+
+---
+
+### 5.3 Trigger: Kaskadowy soft-delete kart przy usunięciu talii
+
+Automatycznie ustawia `deleted_at` na kartach, gdy talia jest usuwana (soft-delete).
+
+```sql
+CREATE OR REPLACE FUNCTION soft_delete_deck_cards()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL THEN
+    UPDATE cards
+    SET deleted_at = NEW.deleted_at
+    WHERE deck_id = NEW.id
+    AND deleted_at IS NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER cascade_soft_delete_cards
+AFTER UPDATE OF deleted_at ON decks
+FOR EACH ROW
+WHEN (NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL)
+EXECUTE FUNCTION soft_delete_deck_cards();
+```
+
+---
+
+### 5.4 Funkcja RPC: Publikacja talii (SECURITY DEFINER)
+
+Funkcja atomowo publikuje talię z walidacjami i blokadą transakcyjną.
+
+```sql
+CREATE OR REPLACE FUNCTION publish_deck(deck_id_param UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  deck_record RECORD;
+  card_count INTEGER;
+  result JSONB;
+BEGIN
+  -- Blokada transakcyjna na talii
+  PERFORM pg_advisory_xact_lock(hashtext(deck_id_param::TEXT));
+
+  -- Pobranie talii z blokadą
+  SELECT * INTO deck_record
+  FROM decks
+  WHERE id = deck_id_param
+  FOR UPDATE;
+
+  -- Walidacja: talia istnieje
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'deck_not_found'
+    );
+  END IF;
+
+  -- Walidacja: użytkownik jest właścicielem
+  IF deck_record.user_id != auth.uid() THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'unauthorized'
+    );
+  END IF;
+
+  -- Walidacja: talia jest w statusie draft
+  IF deck_record.status != 'draft' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'deck_not_draft'
+    );
+  END IF;
+
+  -- Walidacja: talia nie jest usunięta
+  IF deck_record.deleted_at IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'deck_deleted'
+    );
+  END IF;
+
+  -- Zliczenie aktywnych kart
+  SELECT COUNT(*) INTO card_count
+  FROM cards
+  WHERE deck_id = deck_id_param
+  AND deleted_at IS NULL;
+
+  -- Walidacja: talia ma od 1 do 20 kart
+  IF card_count < 1 OR card_count > 20 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'invalid_card_count',
+      'card_count', card_count
+    );
+  END IF;
+
+  -- Usuń karty poza top 20 (wg position)
+  DELETE FROM cards
+  WHERE deck_id = deck_id_param
+  AND deleted_at IS NULL
+  AND position > (
+    SELECT position
+    FROM cards
+    WHERE deck_id = deck_id_param
+    AND deleted_at IS NULL
+    ORDER BY position ASC
+    LIMIT 1 OFFSET 19
+  );
+
+  -- Publikacja talii
+  UPDATE decks
+  SET
+    status = 'published',
+    published_at = NOW(),
+    updated_at = NOW()
+  WHERE id = deck_id_param;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'deck_id', deck_id_param
+  );
+END;
+$$;
+
+-- Przyznaj uprawnienia wykonania
+GRANT EXECUTE ON FUNCTION publish_deck(UUID) TO authenticated;
+```
+
+---
+
+### 5.5 Funkcja RPC: Odrzucenie talii (SECURITY DEFINER)
+
+Funkcja atomowo odrzuca talię z opcjonalnym powodem.
+
+```sql
+CREATE OR REPLACE FUNCTION reject_deck(
+  deck_id_param UUID,
+  reason_param TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  deck_record RECORD;
+BEGIN
+  -- Blokada transakcyjna na talii
+  PERFORM pg_advisory_xact_lock(hashtext(deck_id_param::TEXT));
+
+  -- Pobranie talii z blokadą
+  SELECT * INTO deck_record
+  FROM decks
+  WHERE id = deck_id_param
+  FOR UPDATE;
+
+  -- Walidacja: talia istnieje
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'deck_not_found'
+    );
+  END IF;
+
+  -- Walidacja: użytkownik jest właścicielem
+  IF deck_record.user_id != auth.uid() THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'unauthorized'
+    );
+  END IF;
+
+  -- Walidacja: talia jest w statusie draft
+  IF deck_record.status != 'draft' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'deck_not_draft'
+    );
+  END IF;
+
+  -- Odrzucenie talii
+  UPDATE decks
+  SET
+    status = 'rejected',
+    rejected_at = NOW(),
+    rejected_reason = reason_param,
+    updated_at = NOW()
+  WHERE id = deck_id_param;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'deck_id', deck_id_param
+  );
+END;
+$$;
+
+-- Przyznaj uprawnienia wykonania
+GRANT EXECUTE ON FUNCTION reject_deck(UUID, TEXT) TO authenticated;
+```
+
+---
+
+## 6. Dodatkowe uwagi i decyzje projektowe
+
+### 6.1 Unikalność nazw talii
+
+- Nazwa talii musi być unikalna per użytkownik (case-insensitive przez CITEXT)
+- Unikalność jest wymuszana tylko dla nieusunietych talii (partial unique index)
+- Po soft-delete nazwa może być ponownie użyta przez tego samego użytkownika
+
+### 6.2 Soft-delete vs. Hard-delete
+
+**Soft-delete (MVP):**
+- Wszystkie usunięcia użytkownika używają `deleted_at`
+- Karty są kaskadowo oznaczane jako usunięte, gdy talia jest usuwana
+- Nieusunięte rekordy filtrowane przez `WHERE deleted_at IS NULL`
+
+**Hard-delete (po MVP):**
+- Karty poza top 20 przy publikacji: obecnie hard-delete (DELETE FROM)
+- Rozważyć zmianę na soft-delete dla celów audytu
+- Cron job do czyszczenia starych soft-deleted rekordów (retencja do ustalenia)
+
+### 6.3 Pozycje kart (`position`)
+
+- Pozycje numerowane od 1 (CHECK position > 0)
+- Unikalność wymuszana w obrębie talii (partial unique index)
+- Normalizacja pozycji (usuwanie luk) wykonywana przez logikę aplikacji, nie trigger
+- Przy publikacji brane są pierwsze 20 kart wg `position ASC`
+
+### 6.4 Publikacja talii
+
+**Proces:**
+1. Walidacja własności, statusu (draft), liczby kart (1-20)
+2. Blokada transakcyjna (`pg_advisory_xact_lock`) zapobiega race conditions
+3. Hard-delete kart poza top 20 wg `position`
+4. Zmiana statusu na `published`, ustawienie `published_at`
+5. Po publikacji talia i karty są read-only (wymuszane przez RLS)
+
+### 6.5 Generacja AI
+
+**Workflow:**
+1. Backend tworzy rekord `generation_sessions` z `status = 'in_progress'`
+2. Częściowy unikalny indeks zapewnia, że użytkownik ma max 1 aktywną sesję
+3. Tekst wejściowy sanityzowany i zapisany w `sanitized_source_text` (max 10k znaków)
+4. Wywołanie OpenRouter z timeoutem 5 minut
+5. Jeśli LLM zwróci >20 kart, przycięcie do 20 i zapis `truncated_count`
+6. Zmiana statusu na `completed`, `failed` lub `timeout`
+7. Relacja 1:1 z `decks` przez UNIQUE constraint na `deck_id`
+
+### 6.6 Skalowanie i wydajność
+
+**Indeksy:**
+- Wszystkie częste zapytania mają dedykowane indeksy
+- Częściowe indeksy (`WHERE deleted_at IS NULL`) redukują rozmiar i poprawiają wydajność
+- Indeksy na JSONB (`params`, `metadata`) mogą być dodane w przyszłości przy potrzebie
+
+**Partycjonowanie:**
+- Nie jest wymagane w MVP (przewidywane wolumeny umiarkowane)
+- Rozważyć partycjonowanie `generation_sessions` po dacie przy >100k rekordów/miesiąc
+
+### 6.7 Bezpieczeństwo
+
+**RLS:**
+- Włączone na wszystkich tabelach użytkownika
+- Strategia deny-by-default: brak dostępu bez jawnej polityki
+- Polityki oparte na `auth.uid()` (JWT z Supabase)
