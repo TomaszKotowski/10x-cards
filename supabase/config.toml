@@ -1,6 +1,6 @@
 # A string used to differentiate different projects deployed to the same Hosted Region.
 # Example: my-project-id
-project_id = ""
+project_id = "10x-cards"
 
 [api]
 enabled = true
@@ -52,9 +52,7 @@ additional_redirect_urls = ["https://localhost:4321"]
 # How long tokens are valid, in seconds. Defaults to 3600 (1 hour), maximum 604,800 seconds (one week).
 jwt_expiry = 3600
 # If disabled, the refresh token will never expire.
-refresh_token_rotation_enabled = true
 # Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
-# Requires refresh_token_rotation_enabled = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 enable_signup = true
@@ -66,8 +64,6 @@ enable_signup = true
 enable_confirmations = true
 # If enabled, users will need to confirm their email address before signing in.
 double_confirm_changes = true
-# If enabled, users will be able to set a password when they accept the invite.
-enable_password_reset = true
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -99,8 +95,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.azure]
 enabled = false
@@ -108,8 +102,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.bitbucket]
 enabled = false
@@ -117,8 +109,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.discord]
 enabled = false
@@ -126,8 +116,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.facebook]
 enabled = false
@@ -135,8 +123,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.github]
 enabled = false
@@ -144,8 +130,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.gitlab]
 enabled = false
@@ -153,8 +137,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.google]
 enabled = false
@@ -162,8 +144,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.keycloak]
 enabled = false
@@ -171,10 +151,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
-# Keycloak realm. Must be set if Keycloak is enabled.
-realm = ""
 
 [auth.external.linkedin]
 enabled = false
@@ -182,8 +158,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.notion]
 enabled = false
@@ -191,8 +165,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.slack]
 enabled = false
@@ -200,8 +172,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.spotify]
 enabled = false
@@ -209,8 +179,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.twitch]
 enabled = false
@@ -218,8 +186,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.twitter]
 enabled = false
@@ -227,8 +193,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [auth.external.workos]
 enabled = false
@@ -236,8 +200,6 @@ client_id = ""
 secret = ""
 # Overrides the default auth redirect URL.
 redirect_uri = ""
-# Overrides the default auth scopes.
-scopes = ""
 
 [analytics]
 enabled = false
@@ -254,9 +216,7 @@ backend = "postgres"
 # Configures the amount of data sent to telemetry.
 # telemetry_enabled = false
 
-[functions]
-enabled = true
-verify_jwt = false
+# Configure function settings
 
 [realtime]
 enabled = true
