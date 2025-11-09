@@ -3,6 +3,7 @@ trigger: model_decision
 description: 
 globs: *.tsx,*.astro
 ---
+
 ## Frontend
 
 ### General Guidelines

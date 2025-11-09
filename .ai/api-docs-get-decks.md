@@ -18,12 +18,12 @@ GET /api/decks
 
 ## Query Parameters
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `status` | string | No | - | Filter decks by status. Allowed values: `draft`, `published`, `rejected` |
-| `limit` | number | No | 20 | Number of items per page. Min: 1, Max: 100 |
-| `offset` | number | No | 0 | Starting position for pagination. Min: 0 |
-| `sort` | string | No | `created_at_desc` | Sort order. Allowed values: `created_at_asc`, `created_at_desc`, `name_asc`, `name_desc` |
+| Parameter | Type   | Required | Default           | Description                                                                              |
+| --------- | ------ | -------- | ----------------- | ---------------------------------------------------------------------------------------- |
+| `status`  | string | No       | -                 | Filter decks by status. Allowed values: `draft`, `published`, `rejected`                 |
+| `limit`   | number | No       | 20                | Number of items per page. Min: 1, Max: 100                                               |
+| `offset`  | number | No       | 0                 | Starting position for pagination. Min: 0                                                 |
+| `sort`    | string | No       | `created_at_desc` | Sort order. Allowed values: `created_at_asc`, `created_at_desc`, `name_asc`, `name_desc` |
 
 ## Response
 
@@ -151,26 +151,26 @@ curl -X GET "https://example.com/api/decks?status=draft&sort=name_asc&limit=5&of
 
 ### Deck Object
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string (UUID) | Unique identifier for the deck |
-| `name` | string | Name of the deck |
-| `slug` | string | URL-friendly version of the deck name |
-| `status` | string | Current status: `draft`, `published`, or `rejected` |
-| `published_at` | string \| null | ISO 8601 timestamp when deck was published |
-| `rejected_at` | string \| null | ISO 8601 timestamp when deck was rejected |
-| `rejected_reason` | string \| null | Reason for rejection (if applicable) |
-| `card_count` | number | Number of active cards in the deck |
-| `created_at` | string | ISO 8601 timestamp when deck was created |
-| `updated_at` | string | ISO 8601 timestamp when deck was last updated |
+| Field             | Type           | Description                                         |
+| ----------------- | -------------- | --------------------------------------------------- |
+| `id`              | string (UUID)  | Unique identifier for the deck                      |
+| `name`            | string         | Name of the deck                                    |
+| `slug`            | string         | URL-friendly version of the deck name               |
+| `status`          | string         | Current status: `draft`, `published`, or `rejected` |
+| `published_at`    | string \| null | ISO 8601 timestamp when deck was published          |
+| `rejected_at`     | string \| null | ISO 8601 timestamp when deck was rejected           |
+| `rejected_reason` | string \| null | Reason for rejection (if applicable)                |
+| `card_count`      | number         | Number of active cards in the deck                  |
+| `created_at`      | string         | ISO 8601 timestamp when deck was created            |
+| `updated_at`      | string         | ISO 8601 timestamp when deck was last updated       |
 
 ### Pagination Object
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `limit` | number | Number of items requested per page |
-| `offset` | number | Starting position in the result set |
-| `total` | number | Total number of decks matching the filter criteria |
+| Field    | Type   | Description                                        |
+| -------- | ------ | -------------------------------------------------- |
+| `limit`  | number | Number of items requested per page                 |
+| `offset` | number | Starting position in the result set                |
+| `total`  | number | Total number of decks matching the filter criteria |
 
 ## Notes
 

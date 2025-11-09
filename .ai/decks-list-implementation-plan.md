@@ -5,6 +5,7 @@
 Endpoint `GET /api/decks` służy do pobierania paginowanej listy talii należących do zalogowanego użytkownika. Umożliwia filtrowanie po statusie, sortowanie według różnych kryteriów oraz paginację wyników. Każda talia w odpowiedzi zawiera podstawowe informacje oraz liczbę kart (`card_count`).
 
 **Główne funkcjonalności:**
+
 - Listowanie talii użytkownika z wykluczeniem soft-deleted (deleted_at IS NULL)
 - Filtrowanie po statusie (draft, published, rejected)
 - Sortowanie według created_at lub updated_at (rosnąco/malejąco)
@@ -22,14 +23,15 @@ Endpoint `GET /api/decks` służy do pobierania paginowanej listy talii należą
 
 **Parametry zapytania (query parameters):**
 
-| Parametr | Typ | Wymagany | Wartości | Default | Walidacja |
-|----------|-----|----------|----------|---------|-----------|
-| `status` | string | Nie | `draft`, `published`, `rejected` | brak (wszystkie) | Enum validation |
-| `limit` | number | Nie | 1-100 | 50 | Musi być liczbą całkowitą 1-100 |
-| `offset` | number | Nie | >= 0 | 0 | Musi być liczbą całkowitą >= 0 |
-| `sort` | string | Nie | `updated_at_desc`, `updated_at_asc`, `created_at_desc`, `created_at_asc` | `updated_at_desc` | Enum validation |
+| Parametr | Typ    | Wymagany | Wartości                                                                 | Default           | Walidacja                       |
+| -------- | ------ | -------- | ------------------------------------------------------------------------ | ----------------- | ------------------------------- |
+| `status` | string | Nie      | `draft`, `published`, `rejected`                                         | brak (wszystkie)  | Enum validation                 |
+| `limit`  | number | Nie      | 1-100                                                                    | 50                | Musi być liczbą całkowitą 1-100 |
+| `offset` | number | Nie      | >= 0                                                                     | 0                 | Musi być liczbą całkowitą >= 0  |
+| `sort`   | string | Nie      | `updated_at_desc`, `updated_at_asc`, `created_at_desc`, `created_at_asc` | `updated_at_desc` | Enum validation                 |
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
@@ -43,6 +45,7 @@ Authorization: Bearer <jwt_token>
 ### DTOs (z src/types.ts):
 
 **DeckListItemDTO:**
+
 ```typescript
 // DTO dla pojedynczej talii w liście
 type DeckListItemDTO = Omit<DeckEntity, "user_id" | "deleted_at"> & {
@@ -63,6 +66,7 @@ type DeckListItemDTO = Omit<DeckEntity, "user_id" | "deleted_at"> & {
 ```
 
 **PaginatedDecksResponseDTO:**
+
 ```typescript
 // Odpowiedź z paginacją
 type PaginatedDecksResponseDTO = {
@@ -76,6 +80,7 @@ type PaginatedDecksResponseDTO = {
 ```
 
 **ApiErrorResponseDTO:**
+
 ```typescript
 // Standardowa odpowiedź błędu
 interface ApiErrorResponseDTO {
@@ -87,19 +92,15 @@ interface ApiErrorResponseDTO {
 ### Zod Schemas (do utworzenia):
 
 **GetDecksQuerySchema:**
+
 ```typescript
-import { z } from 'zod';
+import { z } from "zod";
 
 const GetDecksQuerySchema = z.object({
-  status: z.enum(['draft', 'published', 'rejected']).optional(),
+  status: z.enum(["draft", "published", "rejected"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-  sort: z.enum([
-    'updated_at_desc',
-    'updated_at_asc',
-    'created_at_desc',
-    'created_at_asc'
-  ]).default('updated_at_desc')
+  sort: z.enum(["updated_at_desc", "updated_at_asc", "created_at_desc", "created_at_asc"]).default("updated_at_desc"),
 });
 
 type GetDecksQuery = z.infer<typeof GetDecksQuerySchema>;
@@ -116,6 +117,7 @@ type GetDecksQuery = z.infer<typeof GetDecksQuerySchema>;
 **Content-Type:** `application/json`
 
 **Body:**
+
 ```json
 {
   "data": [
@@ -155,6 +157,7 @@ type GetDecksQuery = z.infer<typeof GetDecksQuerySchema>;
 ### Błędy
 
 **400 Bad Request** - Nieprawidłowe parametry zapytania
+
 ```json
 {
   "error": "validation_error",
@@ -163,12 +166,14 @@ type GetDecksQuery = z.infer<typeof GetDecksQuerySchema>;
 ```
 
 Przykładowe przypadki:
+
 - status nie jest jednym z dozwolonych wartości
 - limit < 1 lub limit > 100
 - offset < 0
 - sort nie jest jednym z dozwolonych wartości
 
 **401 Unauthorized** - Brak lub nieprawidłowy token JWT
+
 ```json
 {
   "error": "unauthorized",
@@ -177,6 +182,7 @@ Przykładowe przypadki:
 ```
 
 **500 Internal Server Error** - Błąd serwera lub bazy danych
+
 ```json
 {
   "error": "internal_server_error",
@@ -218,8 +224,9 @@ Przykładowe przypadki:
 ### Szczegóły zapytania bazodanowego:
 
 **Główne zapytanie (pseudocode SQL):**
+
 ```sql
-SELECT 
+SELECT
   d.id,
   d.name,
   d.slug,
@@ -242,6 +249,7 @@ OFFSET :offset;
 ```
 
 **Zapytanie liczące (dla pagination.total):**
+
 ```sql
 SELECT COUNT(*) as total
 FROM decks
@@ -251,6 +259,7 @@ WHERE user_id = :user_id
 ```
 
 **Indeksy używane (z db-plan.md):**
+
 - `idx_decks_user_id_status_updated` - szybkie filtrowanie i sortowanie
 - `idx_cards_deck_id_position` - szybkie liczenie kart
 
@@ -320,31 +329,34 @@ WHERE user_id = :user_id
 
 ### Szczegółowe scenariusze błędów:
 
-| Kod | Scenariusz | Error Type | Message | Działanie |
-|-----|------------|------------|---------|-----------|
-| 401 | Brak tokenu JWT | `unauthorized` | "Authentication required" | Zwróć 401, nie loguj (oczekiwany błąd) |
-| 401 | Token JWT nieprawidłowy/expired | `unauthorized` | "Invalid or expired token" | Zwróć 401, loguj w celach bezpieczeństwa |
-| 400 | `status` nie jest enum | `validation_error` | "Invalid status value" | Zwróć 400 z Zod error details |
-| 400 | `limit` < 1 lub > 100 | `validation_error` | "Limit must be between 1 and 100" | Zwróć 400 z Zod error details |
-| 400 | `offset` < 0 | `validation_error` | "Offset must be non-negative" | Zwróć 400 z Zod error details |
-| 400 | `sort` nie jest enum | `validation_error` | "Invalid sort value" | Zwróć 400 z Zod error details |
-| 500 | Błąd połączenia z DB | `internal_server_error` | "An unexpected error occurred" | Loguj szczegóły, zwróć ogólny komunikat |
-| 500 | Timeout zapytania | `internal_server_error` | "An unexpected error occurred" | Loguj szczegóły, zwróć ogólny komunikat |
-| 500 | Nieoczekiwany wyjątek | `internal_server_error` | "An unexpected error occurred" | Loguj stack trace, zwróć ogólny komunikat |
+| Kod | Scenariusz                      | Error Type              | Message                           | Działanie                                 |
+| --- | ------------------------------- | ----------------------- | --------------------------------- | ----------------------------------------- |
+| 401 | Brak tokenu JWT                 | `unauthorized`          | "Authentication required"         | Zwróć 401, nie loguj (oczekiwany błąd)    |
+| 401 | Token JWT nieprawidłowy/expired | `unauthorized`          | "Invalid or expired token"        | Zwróć 401, loguj w celach bezpieczeństwa  |
+| 400 | `status` nie jest enum          | `validation_error`      | "Invalid status value"            | Zwróć 400 z Zod error details             |
+| 400 | `limit` < 1 lub > 100           | `validation_error`      | "Limit must be between 1 and 100" | Zwróć 400 z Zod error details             |
+| 400 | `offset` < 0                    | `validation_error`      | "Offset must be non-negative"     | Zwróć 400 z Zod error details             |
+| 400 | `sort` nie jest enum            | `validation_error`      | "Invalid sort value"              | Zwróć 400 z Zod error details             |
+| 500 | Błąd połączenia z DB            | `internal_server_error` | "An unexpected error occurred"    | Loguj szczegóły, zwróć ogólny komunikat   |
+| 500 | Timeout zapytania               | `internal_server_error` | "An unexpected error occurred"    | Loguj szczegóły, zwróć ogólny komunikat   |
+| 500 | Nieoczekiwany wyjątek           | `internal_server_error` | "An unexpected error occurred"    | Loguj stack trace, zwróć ogólny komunikat |
 
 ### Strategia logowania:
 
 **Co logować:**
+
 - Błędy 500 (pełny stack trace, context)
 - Błędy 401 z invalid token (potencjalne ataki)
 - Wolne zapytania (> 2s) - performance monitoring
 - User_id i parametry zapytania dla debugowania
 
 **Czego NIE logować:**
+
 - Błędy walidacji 400 (oczekiwane)
 - Pomyślne requesty 200 (tylko w debug mode)
 
 **Format logów (structured logging):**
+
 ```typescript
 {
   level: 'error',
@@ -365,10 +377,10 @@ export function handleApiError(error: unknown, context: string): Response {
   if (error instanceof z.ZodError) {
     return new Response(
       JSON.stringify({
-        error: 'validation_error',
-        message: 'Invalid query parameters'
+        error: "validation_error",
+        message: "Invalid query parameters",
       }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+      { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
 
@@ -377,10 +389,10 @@ export function handleApiError(error: unknown, context: string): Response {
 
   return new Response(
     JSON.stringify({
-      error: 'internal_server_error',
-      message: 'An unexpected error occurred'
+      error: "internal_server_error",
+      message: "An unexpected error occurred",
     }),
-    { status: 500, headers: { 'Content-Type': 'application/json' } }
+    { status: 500, headers: { "Content-Type": "application/json" } }
   );
 }
 ```
@@ -429,12 +441,14 @@ export function handleApiError(error: unknown, context: string): Response {
 ### Monitoring wydajności:
 
 **Metryki do śledzenia (plan na później):**
+
 - P50, P95, P99 response time
 - Liczba zapytań per user
 - Średni czas wykonania zapytania DB
 - Cache hit rate (gdy cache zostanie dodany)
 
 **Progi alarmowe:**
+
 - Response time > 2s (P95)
 - Database query time > 1s (P95)
 - Error rate > 1%
@@ -462,6 +476,7 @@ export function handleApiError(error: unknown, context: string): Response {
 **Plik:** `src/lib/validation/decks.validation.ts`
 
 **Zadania:**
+
 1. Utwórz Zod schema `GetDecksQuerySchema` z walidacją:
    - status: optional enum
    - limit: coerce number 1-100, default 50
@@ -471,19 +486,15 @@ export function handleApiError(error: unknown, context: string): Response {
 3. Dodaj unit testy dla edge cases (invalid values, boundary values)
 
 **Przykład:**
+
 ```typescript
-import { z } from 'zod';
+import { z } from "zod";
 
 export const GetDecksQuerySchema = z.object({
-  status: z.enum(['draft', 'published', 'rejected']).optional(),
+  status: z.enum(["draft", "published", "rejected"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
-  sort: z.enum([
-    'updated_at_desc',
-    'updated_at_asc',
-    'created_at_desc',
-    'created_at_asc'
-  ]).default('updated_at_desc')
+  sort: z.enum(["updated_at_desc", "updated_at_asc", "created_at_desc", "created_at_asc"]).default("updated_at_desc"),
 });
 
 export type GetDecksQuery = z.infer<typeof GetDecksQuerySchema>;
@@ -496,6 +507,7 @@ export type GetDecksQuery = z.infer<typeof GetDecksQuerySchema>;
 **Plik:** `src/lib/services/deck.service.ts`
 
 **Zadania:**
+
 1. Utwórz lub rozszerz `DeckService` class/module
 2. Implementuj metodę `listDecks`:
    - Parametry: `userId: string`, `query: GetDecksQuery`
@@ -511,26 +523,25 @@ export type GetDecksQuery = z.infer<typeof GetDecksQuerySchema>;
 5. Dodaj JSDoc documentation
 
 **Struktura metody:**
+
 ```typescript
-import type { SupabaseClient } from '@/db/supabase.client';
-import type { PaginatedDecksResponseDTO } from '@/types';
-import type { GetDecksQuery } from '@/lib/validation/decks.validation';
+import type { SupabaseClient } from "@/db/supabase.client";
+import type { PaginatedDecksResponseDTO } from "@/types";
+import type { GetDecksQuery } from "@/lib/validation/decks.validation";
 
 export class DeckService {
   constructor(private supabase: SupabaseClient) {}
 
-  async listDecks(
-    userId: string,
-    query: GetDecksQuery
-  ): Promise<PaginatedDecksResponseDTO> {
+  async listDecks(userId: string, query: GetDecksQuery): Promise<PaginatedDecksResponseDTO> {
     // 1. Map sort parameter to ORDER BY
-    const orderByColumn = query.sort.startsWith('created_at') ? 'created_at' : 'updated_at';
-    const orderDirection = query.sort.endsWith('_asc') ? 'asc' : 'desc';
+    const orderByColumn = query.sort.startsWith("created_at") ? "created_at" : "updated_at";
+    const orderDirection = query.sort.endsWith("_asc") ? "asc" : "desc";
 
     // 2. Build base query
     let decksQuery = this.supabase
-      .from('decks')
-      .select(`
+      .from("decks")
+      .select(
+        `
         id,
         name,
         slug,
@@ -541,18 +552,20 @@ export class DeckService {
         created_at,
         updated_at,
         cards:cards(count)
-      `, { count: 'exact' })
-      .eq('user_id', userId)
-      .is('deleted_at', null);
+      `,
+        { count: "exact" }
+      )
+      .eq("user_id", userId)
+      .is("deleted_at", null);
 
     // 3. Apply status filter if provided
     if (query.status) {
-      decksQuery = decksQuery.eq('status', query.status);
+      decksQuery = decksQuery.eq("status", query.status);
     }
 
     // 4. Apply sorting and pagination
     const { data, error, count } = await decksQuery
-      .order(orderByColumn, { ascending: orderDirection === 'asc' })
+      .order(orderByColumn, { ascending: orderDirection === "asc" })
       .range(query.offset, query.offset + query.limit - 1);
 
     // 5. Handle errors
@@ -561,9 +574,9 @@ export class DeckService {
     }
 
     // 6. Transform to DTOs
-    const decksWithCount = data.map(deck => ({
+    const decksWithCount = data.map((deck) => ({
       ...deck,
-      card_count: deck.cards[0]?.count ?? 0
+      card_count: deck.cards[0]?.count ?? 0,
     }));
 
     // 7. Return paginated response
@@ -572,14 +585,15 @@ export class DeckService {
       pagination: {
         limit: query.limit,
         offset: query.offset,
-        total: count ?? 0
-      }
+        total: count ?? 0,
+      },
     };
   }
 }
 ```
 
 **Alternatywne podejście (funkcyjne):**
+
 ```typescript
 export async function listDecks(
   supabase: SupabaseClient,
@@ -597,6 +611,7 @@ export async function listDecks(
 **Plik:** `src/pages/api/decks/index.ts`
 
 **Zadania:**
+
 1. Utwórz plik z eksportem `GET` function (uppercase)
 2. Dodaj `export const prerender = false`
 3. Implementuj flow:
@@ -608,11 +623,12 @@ export async function listDecks(
 5. Dodaj TypeScript types dla wszystkich zmiennych
 
 **Implementacja:**
+
 ```typescript
-import type { APIRoute } from 'astro';
-import { GetDecksQuerySchema } from '@/lib/validation/decks.validation';
-import { DeckService } from '@/lib/services/deck.service';
-import type { ApiErrorResponseDTO } from '@/types';
+import type { APIRoute } from "astro";
+import { GetDecksQuerySchema } from "@/lib/validation/decks.validation";
+import { DeckService } from "@/lib/services/deck.service";
+import type { ApiErrorResponseDTO } from "@/types";
 
 export const prerender = false;
 
@@ -620,65 +636,61 @@ export const GET: APIRoute = async ({ request, locals }) => {
   try {
     // 1. Check authentication
     const user = await locals.supabase.auth.getUser();
-    
+
     if (!user.data.user) {
       const errorResponse: ApiErrorResponseDTO = {
-        error: 'unauthorized',
-        message: 'Authentication required'
+        error: "unauthorized",
+        message: "Authentication required",
       };
       return new Response(JSON.stringify(errorResponse), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { "Content-Type": "application/json" },
       });
     }
 
     // 2. Parse and validate query parameters
     const url = new URL(request.url);
     const rawQuery = {
-      status: url.searchParams.get('status'),
-      limit: url.searchParams.get('limit'),
-      offset: url.searchParams.get('offset'),
-      sort: url.searchParams.get('sort')
+      status: url.searchParams.get("status"),
+      limit: url.searchParams.get("limit"),
+      offset: url.searchParams.get("offset"),
+      sort: url.searchParams.get("sort"),
     };
 
     const validationResult = GetDecksQuerySchema.safeParse(rawQuery);
-    
+
     if (!validationResult.success) {
       const errorResponse: ApiErrorResponseDTO = {
-        error: 'validation_error',
-        message: 'Invalid query parameters'
+        error: "validation_error",
+        message: "Invalid query parameters",
       };
       return new Response(JSON.stringify(errorResponse), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { "Content-Type": "application/json" },
       });
     }
 
     // 3. Call service layer
     const deckService = new DeckService(locals.supabase);
-    const result = await deckService.listDecks(
-      user.data.user.id,
-      validationResult.data
-    );
+    const result = await deckService.listDecks(user.data.user.id, validationResult.data);
 
     // 4. Return success response
     return new Response(JSON.stringify(result), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json" },
     });
-
   } catch (error) {
     // 5. Handle unexpected errors
-    console.error('[GET /api/decks] Error:', error);
-    
+    console.error("[GET /api/decks] Error:", error);
+
     const errorResponse: ApiErrorResponseDTO = {
-      error: 'internal_server_error',
-      message: 'An unexpected error occurred'
+      error: "internal_server_error",
+      message: "An unexpected error occurred",
     };
-    
+
     return new Response(JSON.stringify(errorResponse), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json" },
     });
   }
 };
@@ -691,33 +703,31 @@ export const GET: APIRoute = async ({ request, locals }) => {
 **Plik:** `src/middleware/index.ts`
 
 **Zadania:**
+
 1. Sprawdź, czy middleware poprawnie inicjalizuje `locals.supabase`
 2. Upewnij się, że Supabase client jest dostępny w context
 3. Jeśli nie istnieje, utwórz middleware według dokumentacji Astro + Supabase
 
 **Przykład middleware (jeśli trzeba utworzyć):**
+
 ```typescript
-import { defineMiddleware } from 'astro:middleware';
-import { createServerClient } from '@supabase/ssr';
+import { defineMiddleware } from "astro:middleware";
+import { createServerClient } from "@supabase/ssr";
 
 export const onRequest = defineMiddleware(async ({ locals, request }, next) => {
-  locals.supabase = createServerClient(
-    import.meta.env.SUPABASE_URL,
-    import.meta.env.SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        get(key) {
-          return request.headers.get('cookie')?.match(new RegExp(`${key}=([^;]+)`))?.[1];
-        },
-        set(key, value, options) {
-          // Set cookie logic
-        },
-        remove(key, options) {
-          // Remove cookie logic
-        }
-      }
-    }
-  );
+  locals.supabase = createServerClient(import.meta.env.SUPABASE_URL, import.meta.env.SUPABASE_ANON_KEY, {
+    cookies: {
+      get(key) {
+        return request.headers.get("cookie")?.match(new RegExp(`${key}=([^;]+)`))?.[1];
+      },
+      set(key, value, options) {
+        // Set cookie logic
+      },
+      remove(key, options) {
+        // Remove cookie logic
+      },
+    },
+  });
 
   return next();
 });
@@ -730,6 +740,7 @@ export const onRequest = defineMiddleware(async ({ locals, request }, next) => {
 **Plik:** `src/lib/validation/__tests__/decks.validation.test.ts`
 
 **Zadania:**
+
 1. Test suite dla `GetDecksQuerySchema`
 2. Test cases:
    - Valid queries z różnymi kombinacjami parametrów
@@ -742,64 +753,65 @@ export const onRequest = defineMiddleware(async ({ locals, request }, next) => {
    - Empty/undefined values
 
 **Przykładowe testy:**
-```typescript
-import { describe, it, expect } from 'vitest';
-import { GetDecksQuerySchema } from '../decks.validation';
 
-describe('GetDecksQuerySchema', () => {
-  it('should accept valid query with all parameters', () => {
+```typescript
+import { describe, it, expect } from "vitest";
+import { GetDecksQuerySchema } from "../decks.validation";
+
+describe("GetDecksQuerySchema", () => {
+  it("should accept valid query with all parameters", () => {
     const result = GetDecksQuerySchema.parse({
-      status: 'draft',
-      limit: '25',
-      offset: '10',
-      sort: 'created_at_asc'
+      status: "draft",
+      limit: "25",
+      offset: "10",
+      sort: "created_at_asc",
     });
 
     expect(result).toEqual({
-      status: 'draft',
+      status: "draft",
       limit: 25,
       offset: 10,
-      sort: 'created_at_asc'
+      sort: "created_at_asc",
     });
   });
 
-  it('should apply default values', () => {
+  it("should apply default values", () => {
     const result = GetDecksQuerySchema.parse({});
 
     expect(result).toEqual({
       limit: 50,
       offset: 0,
-      sort: 'updated_at_desc'
+      sort: "updated_at_desc",
     });
   });
 
-  it('should reject invalid status', () => {
+  it("should reject invalid status", () => {
     expect(() => {
-      GetDecksQuerySchema.parse({ status: 'invalid' });
+      GetDecksQuerySchema.parse({ status: "invalid" });
     }).toThrow();
   });
 
-  it('should reject limit > 100', () => {
+  it("should reject limit > 100", () => {
     expect(() => {
-      GetDecksQuerySchema.parse({ limit: '101' });
+      GetDecksQuerySchema.parse({ limit: "101" });
     }).toThrow();
   });
 
-  it('should reject negative offset', () => {
+  it("should reject negative offset", () => {
     expect(() => {
-      GetDecksQuerySchema.parse({ offset: '-1' });
+      GetDecksQuerySchema.parse({ offset: "-1" });
     }).toThrow();
   });
 
-  it('should coerce string numbers to integers', () => {
+  it("should coerce string numbers to integers", () => {
     const result = GetDecksQuerySchema.parse({
-      limit: '30',
-      offset: '5'
+      limit: "30",
+      offset: "5",
     });
 
     expect(result.limit).toBe(30);
     expect(result.offset).toBe(5);
-    expect(typeof result.limit).toBe('number');
+    expect(typeof result.limit).toBe("number");
   });
 });
 ```
@@ -811,6 +823,7 @@ describe('GetDecksQuerySchema', () => {
 **Plik:** `src/lib/services/__tests__/deck.service.test.ts`
 
 **Zadania:**
+
 1. Setup mock Supabase client
 2. Test cases dla `listDecks`:
    - Successful list with pagination
@@ -821,34 +834,35 @@ describe('GetDecksQuerySchema', () => {
    - Card count calculation
 
 **Przykładowe testy (z vitest):**
-```typescript
-import { describe, it, expect, vi } from 'vitest';
-import { DeckService } from '../deck.service';
 
-describe('DeckService.listDecks', () => {
+```typescript
+import { describe, it, expect, vi } from "vitest";
+import { DeckService } from "../deck.service";
+
+describe("DeckService.listDecks", () => {
   const mockSupabase = {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
           is: vi.fn(() => ({
             order: vi.fn(() => ({
-              range: vi.fn()
-            }))
-          }))
-        }))
-      }))
-    }))
+              range: vi.fn(),
+            })),
+          })),
+        })),
+      })),
+    })),
   };
 
-  it('should return paginated decks with card count', async () => {
+  it("should return paginated decks with card count", async () => {
     // Mock implementation...
   });
 
-  it('should filter by status when provided', async () => {
+  it("should filter by status when provided", async () => {
     // Mock implementation...
   });
 
-  it('should handle database errors gracefully', async () => {
+  it("should handle database errors gracefully", async () => {
     // Mock implementation...
   });
 });
@@ -861,6 +875,7 @@ describe('DeckService.listDecks', () => {
 **Plik:** `tests/api/decks.test.ts` (lub odpowiednia lokalizacja)
 
 **Zadania:**
+
 1. Setup test database lub mock Supabase
 2. Test cases:
    - GET /api/decks bez auth -> 401
@@ -872,76 +887,77 @@ describe('DeckService.listDecks', () => {
    - Verify response structure matches DTO
 
 **Przykładowe testy (z Playwright lub innym narzędziem):**
-```typescript
-import { test, expect } from '@playwright/test';
 
-test.describe('GET /api/decks', () => {
-  test('should return 401 without authentication', async ({ request }) => {
-    const response = await request.get('/api/decks');
+```typescript
+import { test, expect } from "@playwright/test";
+
+test.describe("GET /api/decks", () => {
+  test("should return 401 without authentication", async ({ request }) => {
+    const response = await request.get("/api/decks");
     expect(response.status()).toBe(401);
-    
+
     const body = await response.json();
-    expect(body).toHaveProperty('error', 'unauthorized');
+    expect(body).toHaveProperty("error", "unauthorized");
   });
 
-  test('should return paginated decks with valid auth', async ({ request }) => {
+  test("should return paginated decks with valid auth", async ({ request }) => {
     // Login and get token
     const token = await getAuthToken();
-    
-    const response = await request.get('/api/decks', {
-      headers: { Authorization: `Bearer ${token}` }
+
+    const response = await request.get("/api/decks", {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    
+
     expect(response.status()).toBe(200);
-    
+
     const body = await response.json();
-    expect(body).toHaveProperty('data');
-    expect(body).toHaveProperty('pagination');
-    expect(body.pagination).toHaveProperty('limit', 50);
-    expect(body.pagination).toHaveProperty('offset', 0);
-    expect(body.pagination).toHaveProperty('total');
+    expect(body).toHaveProperty("data");
+    expect(body).toHaveProperty("pagination");
+    expect(body.pagination).toHaveProperty("limit", 50);
+    expect(body.pagination).toHaveProperty("offset", 0);
+    expect(body.pagination).toHaveProperty("total");
   });
 
-  test('should filter by status', async ({ request }) => {
+  test("should filter by status", async ({ request }) => {
     const token = await getAuthToken();
-    
-    const response = await request.get('/api/decks?status=draft', {
-      headers: { Authorization: `Bearer ${token}` }
+
+    const response = await request.get("/api/decks?status=draft", {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    
+
     expect(response.status()).toBe(200);
     const body = await response.json();
-    
+
     // All returned decks should have status 'draft'
-    body.data.forEach(deck => {
-      expect(deck.status).toBe('draft');
+    body.data.forEach((deck) => {
+      expect(deck.status).toBe("draft");
     });
   });
 
-  test('should respect limit parameter', async ({ request }) => {
+  test("should respect limit parameter", async ({ request }) => {
     const token = await getAuthToken();
-    
-    const response = await request.get('/api/decks?limit=10', {
-      headers: { Authorization: `Bearer ${token}` }
+
+    const response = await request.get("/api/decks?limit=10", {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    
+
     expect(response.status()).toBe(200);
     const body = await response.json();
-    
+
     expect(body.data.length).toBeLessThanOrEqual(10);
     expect(body.pagination.limit).toBe(10);
   });
 
-  test('should return 400 for invalid parameters', async ({ request }) => {
+  test("should return 400 for invalid parameters", async ({ request }) => {
     const token = await getAuthToken();
-    
-    const response = await request.get('/api/decks?limit=101', {
-      headers: { Authorization: `Bearer ${token}` }
+
+    const response = await request.get("/api/decks?limit=101", {
+      headers: { Authorization: `Bearer ${token}` },
     });
-    
+
     expect(response.status()).toBe(400);
     const body = await response.json();
-    expect(body).toHaveProperty('error', 'validation_error');
+    expect(body).toHaveProperty("error", "validation_error");
   });
 });
 ```
@@ -953,6 +969,7 @@ test.describe('GET /api/decks', () => {
 **Plik:** `docs/api/decks.md` (lub aktualizacja istniejącej dokumentacji)
 
 **Zadania:**
+
 1. Dokumentuj endpoint w formacie czytelnym dla developerów
 2. Dodaj przykłady requestów i responses
 3. Opisz wszystkie parametry i ich walidacje
@@ -960,33 +977,40 @@ test.describe('GET /api/decks', () => {
 5. Dołącz curl examples dla łatwego testowania
 
 **Przykład dokumentacji:**
-```markdown
+
+````markdown
 # GET /api/decks
 
 ## Description
+
 Returns a paginated list of decks for the authenticated user.
 
 ## Authentication
+
 Required. Include JWT token in Authorization header.
 
 ## Query Parameters
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| status | string | No | - | Filter by deck status: draft, published, rejected |
-| limit | number | No | 50 | Items per page (1-100) |
-| offset | number | No | 0 | Pagination offset |
-| sort | string | No | updated_at_desc | Sort order |
+
+| Parameter | Type   | Required | Default         | Description                                       |
+| --------- | ------ | -------- | --------------- | ------------------------------------------------- |
+| status    | string | No       | -               | Filter by deck status: draft, published, rejected |
+| limit     | number | No       | 50              | Items per page (1-100)                            |
+| offset    | number | No       | 0               | Pagination offset                                 |
+| sort      | string | No       | updated_at_desc | Sort order                                        |
 
 ## Examples
 
 ### Basic request
+
 ```bash
 curl -X GET \
   'https://api.10xcards.com/api/decks' \
   -H 'Authorization: Bearer YOUR_JWT_TOKEN'
 ```
+````
 
 ### Filter by status
+
 ```bash
 curl -X GET \
   'https://api.10xcards.com/api/decks?status=draft&limit=10' \
@@ -994,10 +1018,12 @@ curl -X GET \
 ```
 
 ## Response Codes
+
 - 200 OK - Success
 - 400 Bad Request - Invalid parameters
 - 401 Unauthorized - Missing or invalid token
 - 500 Internal Server Error - Server error
+
 ```
 
 ---
@@ -1134,3 +1160,4 @@ curl -X GET \
 ---
 
 **Plan gotowy do implementacji!**
+```

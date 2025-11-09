@@ -68,11 +68,13 @@ BREAKING CHANGE: Requires Node.js v16+ for new ES features.
 ## Full Examples
 
 ### Simple Feature
+
 ```
 feat: add user authentication flow
 ```
 
 ### Feature with Scope and Body
+
 ```
 feat(ui): implement dark mode toggle
 
@@ -82,6 +84,7 @@ Supports persistence via localStorage.
 ```
 
 ### Bug Fix with Scope
+
 ```
 fix(backend): resolve race condition in Supabase queries
 
@@ -89,11 +92,13 @@ Prevent concurrent requests from overwriting data by adding request IDs.
 ```
 
 ### Documentation Update
+
 ```
 docs: update API endpoint descriptions in README
 ```
 
 ### Refactor with Body and Footer
+
 ```
 refactor(lib): extract validation logic into Zod schemas
 
@@ -105,6 +110,7 @@ Refs: #456
 ```
 
 ### Multi-Paragraph Body
+
 ```
 fix: handle empty arrays in form submissions
 
@@ -118,6 +124,7 @@ Reviewed-by: Team Lead
 ```
 
 ### Revert Example
+
 ```
 revert: undo accidental merge of feature branch
 

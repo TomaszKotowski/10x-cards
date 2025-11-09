@@ -22,7 +22,7 @@ export class DeckService {
 
     // Parse sort parameter into column and direction
     const [sortColumn, sortDirection] = this.parseSortParameter(sort);
-    const orderByColumn = sortColumn as "created_at" | "name";
+    const orderByColumn = sortColumn as "created_at" | "updated_at";
     const orderDirection = sortDirection as "asc" | "desc";
 
     // Build base query with user filter and soft-delete exclusion
@@ -83,14 +83,14 @@ export class DeckService {
   /**
    * Parses sort parameter string into column name and direction.
    *
-   * @param sort - Sort parameter (e.g., "created_at_desc", "name_asc")
+   * @param sort - Sort parameter (e.g., "created_at_desc", "updated_at_asc")
    * @returns Tuple of [column, direction]
    * @private
    */
   private parseSortParameter(sort: string): [string, string] {
     const parts = sort.split("_");
     const direction = parts.pop() as string; // "asc" or "desc"
-    const column = parts.join("_"); // "created_at" or "name"
+    const column = parts.join("_"); // "created_at" or "updated_at"
     return [column, direction];
   }
 }

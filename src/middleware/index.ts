@@ -1,5 +1,5 @@
-import { defineMiddleware } from "astro:middleware";
 import { createClient } from "@supabase/supabase-js";
+import { defineMiddleware } from "astro:middleware";
 
 import type { Database } from "../db/database.types";
 
@@ -45,3 +45,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
         },
       },
       // Don't automatically refresh tokens - we'll handle this manually
+      autoRefreshToken: false,
+    },
+  });
+
+  // Call next() to continue to the next middleware or route handler
+  await next();
+});
