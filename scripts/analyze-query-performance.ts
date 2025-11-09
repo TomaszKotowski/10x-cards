@@ -12,7 +12,7 @@ async function analyzeQueryPerformance() {
 
   // Query 1: Main query - all decks with default sort
   console.log("📊 Query 1: List all decks (default sort: updated_at DESC)");
-  console.log("=" .repeat(70));
+  console.log("=".repeat(70));
 
   const query1 = `
     EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
@@ -28,13 +28,14 @@ async function analyzeQueryPerformance() {
 
   if (error1) {
     console.log("Trying alternative approach...");
-    const { data: result1 } = await supabase.from("decks")
+    const { data: result1 } = await supabase
+      .from("decks")
       .select("*")
       .eq("user_id", TEST_USER_ID)
       .is("deleted_at", null)
       .order("updated_at", { ascending: false })
       .limit(50);
-    
+
     console.log(`✅ Query executed successfully`);
     console.log(`   Returned: ${result1?.length || 0} rows\n`);
   } else {
@@ -43,7 +44,7 @@ async function analyzeQueryPerformance() {
 
   // Query 2: With status filter
   console.log("\n📊 Query 2: List decks with status filter (status='draft')");
-  console.log("=" .repeat(70));
+  console.log("=".repeat(70));
 
   const { data: result2, error: error2 } = await supabase
     .from("decks")
@@ -61,10 +62,10 @@ async function analyzeQueryPerformance() {
 
   // Query 3: Card count aggregation
   console.log("📊 Query 3: Get card counts for decks");
-  console.log("=" .repeat(70));
+  console.log("=".repeat(70));
 
-  const deckIds = result2?.map(d => d.id) || [];
-  
+  const deckIds = result2?.map((d) => d.id) || [];
+
   if (deckIds.length > 0) {
     const { data: cards, error: error3 } = await supabase
       .from("cards")
@@ -86,19 +87,18 @@ async function analyzeQueryPerformance() {
 
   // Check indexes
   console.log("📊 Checking indexes on decks table");
-  console.log("=" .repeat(70));
+  console.log("=".repeat(70));
 
-  const { data: indexes } = await supabase
-    .rpc("exec_sql", { 
-      query: `
+  const { data: indexes } = await supabase.rpc("exec_sql", {
+    query: `
         SELECT 
           indexname,
           indexdef
         FROM pg_indexes
         WHERE tablename = 'decks'
         ORDER BY indexname;
-      ` 
-    });
+      `,
+  });
 
   if (indexes) {
     console.log("Indexes found:");
@@ -110,7 +110,7 @@ async function analyzeQueryPerformance() {
 
   // Performance recommendations
   console.log("\n💡 Performance Analysis Summary");
-  console.log("=" .repeat(70));
+  console.log("=".repeat(70));
   console.log("✅ Index: idx_decks_user_id_status_updated");
   console.log("   - Covers: user_id, status, updated_at DESC");
   console.log("   - Partial: WHERE deleted_at IS NULL");

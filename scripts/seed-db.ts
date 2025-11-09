@@ -15,7 +15,7 @@ async function seedDatabase() {
   try {
     // First, ensure we have a test user (create if doesn't exist)
     const { data: existingUser } = await supabase.auth.admin.getUserById(TEST_USER_ID);
-    
+
     if (!existingUser.user) {
       console.log("👤 Creating test user...");
       const { error: userError } = await supabase.auth.admin.createUser({
@@ -112,10 +112,7 @@ async function seedDatabase() {
       },
     ];
 
-    const { data: insertedDecks, error: decksError } = await supabase
-      .from("decks")
-      .insert(decks)
-      .select();
+    const { data: insertedDecks, error: decksError } = await supabase.from("decks").insert(decks).select();
 
     if (decksError) {
       console.error("❌ Error creating decks:", decksError);

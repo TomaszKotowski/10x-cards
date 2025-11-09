@@ -22,10 +22,11 @@ async function checkData() {
   console.log("✅ Signed in as:", authData.user.email);
 
   // Check decks
-  const { data: decks, error: decksError, count: decksCount } = await supabase
-    .from("decks")
-    .select("*", { count: "exact" })
-    .is("deleted_at", null);
+  const {
+    data: decks,
+    error: decksError,
+    count: decksCount,
+  } = await supabase.from("decks").select("*", { count: "exact" }).is("deleted_at", null);
 
   if (decksError) {
     console.error("❌ Error fetching decks:", decksError);
@@ -33,7 +34,7 @@ async function checkData() {
   }
 
   console.log(`📦 Total decks: ${decksCount}`);
-  
+
   if (decks && decks.length > 0) {
     console.log("\n📋 Sample decks:");
     decks.slice(0, 3).forEach((deck) => {
