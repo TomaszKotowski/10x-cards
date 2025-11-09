@@ -1,4 +1,4 @@
-import type { DeckDetailDTO, DeckListItemDTO } from "@/types";
+import type { DeckDetailDTO, DeckListItemDTO, UpdateDeckCommand } from "@/types";
 import type { ListDecksQuery } from "@/lib/schemas/deck.schema";
 
 /**
@@ -190,4 +190,58 @@ export async function getDeckByIdMock(deckId: string): Promise<DeckDetailDTO | n
 
   // Return deck as DeckDetailDTO (currently same as DeckListItemDTO)
   return deck;
+}
+
+/**
+ * Mock implementation of updateDeck for development/testing.
+ * Simulates updating a deck's name with validation and business rules.
+ *
+ * @param deckId - UUID of the deck to update
+ * @param command - Update command containing the new name
+ * @returns Promise with updated deck details
+ *
+ * @throws Error with message "Deck not found" if deck doesn't exist
+ * @throws Error with message "Deck not editable" if deck status is not draft
+ * @throws Error with message "Name not unique" if deck name already exists
+ */
+export async function updateDeckMock(deckId: string, command: UpdateDeckCommand): Promise<DeckDetailDTO> {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // Find deck in mock data
+  const deckIndex = MOCK_DECKS.findIndex((d) => d.id === deckId);
+
+  // Guard: Deck not found
+  if (deckIndex === -1) {
+    throw new Error("Deck not found");
+  }
+
+  const deck = MOCK_DECKS[deckIndex];
+
+  // Guard: Check if deck is editable (only draft decks)
+  if (deck.status !== "draft") {
+    throw new Error("Deck not editable");
+  }
+
+  // Guard: Check name uniqueness (case-insensitive)
+  if (command.name) {
+    const nameExists = MOCK_DECKS.some((d) => d.id !== deckId && d.name.toLowerCase() === command.name?.toLowerCase());
+
+    if (nameExists) {
+      throw new Error("Name not unique");
+    }
+  }
+
+  // Update deck (simulate slug generation)
+  const updatedDeck: DeckListItemDTO = {
+    ...deck,
+    name: command.name ?? deck.name,
+    slug: command.name ? command.name.toLowerCase().replace(/\s+/g, "-") : deck.slug,
+    updated_at: new Date().toISOString(),
+  };
+
+  // Update in mock data array
+  MOCK_DECKS[deckIndex] = updatedDeck;
+
+  return updatedDeck;
 }

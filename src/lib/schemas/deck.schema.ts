@@ -38,3 +38,23 @@ export const DeckIdParamSchema = z.object({
  * Inferred TypeScript type for deck ID parameter.
  */
 export type DeckIdParam = z.infer<typeof DeckIdParamSchema>;
+
+/**
+ * Validation schema for PATCH /api/decks/:deckId request body.
+ *
+ * Validates:
+ * - name: Optional deck name (1-100 characters)
+ * - At least one field must be provided for update
+ */
+export const updateDeckSchema = z
+  .object({
+    name: z.string().min(1, "Deck name cannot be empty").max(100, "Deck name exceeds maximum length").optional(),
+  })
+  .refine((data) => data.name !== undefined, {
+    message: "At least one field must be provided for update",
+  });
+
+/**
+ * Inferred TypeScript type for update deck request body.
+ */
+export type UpdateDeckBody = z.infer<typeof updateDeckSchema>;

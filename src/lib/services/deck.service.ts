@@ -1,6 +1,6 @@
 import type { Database } from "@/db/database.types";
 import type { ListDecksQuery } from "@/lib/schemas/deck.schema";
-import type { DeckDetailDTO, DeckListItemDTO } from "@/types";
+import type { DeckDetailDTO, DeckListItemDTO, UpdateDeckCommand } from "@/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -203,5 +203,97 @@ export async function getDeckById(
     card_count: count ?? 0,
     created_at: deck.created_at,
     updated_at: deck.updated_at,
+  };
+}
+
+/**
+ * Updates a deck's name. Only draft decks can be updated.
+ *
+ * @param supabase - Authenticated Supabase client instance
+ * @param userId - UUID of the user who owns the deck
+ * @param deckId - UUID of the deck to update
+ * @param command - Update command containing the new name
+ * @returns Promise with updated deck details
+ *
+ * @throws Error with message "Deck not found" if deck doesn't exist or user doesn't have access
+ * @throws Error with message "Deck not editable" if deck status is not draft
+ * @throws Error with message "Name not unique" if deck name already exists for this user
+ * @throws Error if database query fails
+ *
+ * @example
+ * ```typescript
+ * const updatedDeck = await updateDeck(
+ *   supabase,
+ *   "user-uuid",
+ *   "550e8400-e29b-41d4-a716-446655440000",
+ *   { name: "Advanced JavaScript Concepts" }
+ * );
+ * ```
+ */
+export async function updateDeck(
+  supabase: TypedSupabaseClient,
+  userId: string,
+  deckId: string,
+  command: UpdateDeckCommand
+): Promise<DeckDetailDTO> {
+  // Guard: Verify ownership and get current status
+  const { data: deck, error: fetchError } = await supabase
+    .from("decks")
+    .select("status")
+    .eq("id", deckId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .single();
+
+  if (fetchError || !deck) {
+    throw new Error("Deck not found");
+  }
+
+  // Guard: Check if deck is editable (only draft decks can be updated)
+  if (deck.status !== "draft") {
+    throw new Error("Deck not editable");
+  }
+
+  // Update deck name
+  const { data: updatedDeck, error: updateError } = await supabase
+    .from("decks")
+    .update({ name: command.name })
+    .eq("id", deckId)
+    .select()
+    .single();
+
+  // Handle unique constraint violation (duplicate deck name for user)
+  if (updateError?.code === "23505") {
+    throw new Error("Name not unique");
+  }
+
+  if (updateError || !updatedDeck) {
+    throw new Error(`Failed to update deck: ${updateError?.message || "Unknown error"}`);
+  }
+
+  // Get card count for the updated deck
+  const { count, error: countError } = await supabase
+    .from("cards")
+    .select("*", { count: "exact", head: true })
+    .eq("deck_id", deckId)
+    .is("deleted_at", null);
+
+  // Log error but continue with count = 0 if card count fails
+  if (countError) {
+    console.error("Failed to fetch card count:", countError);
+  }
+
+  // Map database entity to DTO
+  return {
+    id: updatedDeck.id,
+    name: updatedDeck.name,
+    slug: updatedDeck.slug,
+    status: updatedDeck.status as "draft" | "published" | "rejected",
+    published_at: updatedDeck.published_at,
+    rejected_at: updatedDeck.rejected_at,
+    rejected_reason: updatedDeck.rejected_reason,
+    card_count: count ?? 0,
+    created_at: updatedDeck.created_at,
+    updated_at: updatedDeck.updated_at,
   };
 }
