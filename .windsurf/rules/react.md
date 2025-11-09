@@ -3,6 +3,7 @@ trigger: model_decision
 description: 
 globs: *.tsx
 ---
+
 ### Guidelines for React
 
 - Use functional components with hooks instead of class components

@@ -6,12 +6,12 @@ This document defines the REST API for the 10x-cards MVP application. The API is
 
 The API exposes the following main resources, mapped to database tables:
 
-| Resource | Database Table | Description |
-|----------|---------------|-------------|
-| **Decks** | `decks` | Flashcard decks owned by users |
-| **Cards** | `cards` | Individual flashcards within decks |
-| **Generations** | `generation_sessions` | AI generation sessions for creating decks |
-| **Auth** | `auth.users` | User authentication (managed by Supabase GoTrue) |
+| Resource        | Database Table        | Description                                      |
+| --------------- | --------------------- | ------------------------------------------------ |
+| **Decks**       | `decks`               | Flashcard decks owned by users                   |
+| **Cards**       | `cards`               | Individual flashcards within decks               |
+| **Generations** | `generation_sessions` | AI generation sessions for creating decks        |
+| **Auth**        | `auth.users`          | User authentication (managed by Supabase GoTrue) |
 
 ---
 
@@ -22,6 +22,7 @@ The API exposes the following main resources, mapped to database tables:
 Authentication is handled by **Supabase GoTrue** via client-side SDK. No custom auth endpoints are needed in the REST API. All API endpoints require a valid JWT token from Supabase Auth in the `Authorization` header.
 
 **Authentication Flow:**
+
 1. Client uses Supabase client SDK for signup/login/logout
 2. Supabase returns JWT token
 3. Client includes token in `Authorization: Bearer <token>` header for all API calls
@@ -36,17 +37,20 @@ Authentication is handled by **Supabase GoTrue** via client-side SDK. No custom 
 List all decks for the authenticated user.
 
 **Query Parameters:**
+
 - `status` (optional): Filter by status (`draft`, `published`, `rejected`)
 - `limit` (optional): Number of items per page (default: 50, max: 100)
 - `offset` (optional): Pagination offset (default: 0)
 - `sort` (optional): Sort order (`updated_at_desc`, `updated_at_asc`, `created_at_desc`, `created_at_asc`; default: `updated_at_desc`)
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "data": [
@@ -72,6 +76,7 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Error Responses:**
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `500 Internal Server Error`: Generic server error
 
@@ -82,14 +87,17 @@ Authorization: Bearer <jwt_token>
 Get details of a specific deck.
 
 **Path Parameters:**
+
 - `deckId`: UUID of the deck
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "id": "uuid",
@@ -106,6 +114,7 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Error Responses:**
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Deck not found or not owned by user
 - `500 Internal Server Error`: Generic server error
@@ -117,15 +126,18 @@ Authorization: Bearer <jwt_token>
 Update a deck's name or other mutable properties (only for draft decks).
 
 **Path Parameters:**
+
 - `deckId`: UUID of the deck
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "string (1-100 characters, optional)"
@@ -133,6 +145,7 @@ Content-Type: application/json
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "id": "uuid",
@@ -149,7 +162,9 @@ Content-Type: application/json
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Validation errors (e.g., name too long, name not unique, deck not in draft status)
+
 ```json
 {
   "error": "validation_error",
@@ -160,11 +175,13 @@ Content-Type: application/json
   }
 }
 ```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Deck not found or not owned by user
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Only decks with `status = 'draft'` can be updated
 - Deck name must be unique per user (case-insensitive, excluding soft-deleted decks)
 - Slug is auto-generated from name via database trigger
@@ -176,9 +193,11 @@ Content-Type: application/json
 Soft-delete a deck (sets `deleted_at` timestamp).
 
 **Path Parameters:**
+
 - `deckId`: UUID of the deck
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
@@ -187,11 +206,13 @@ Authorization: Bearer <jwt_token>
 No body returned on successful deletion.
 
 **Error Responses:**
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Deck not found or not owned by user
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Sets `deleted_at = NOW()` on the deck
 - Database trigger cascades soft-delete to all cards in the deck
 - Soft-deleted decks are excluded from all listing and detail queries
@@ -203,14 +224,17 @@ No body returned on successful deletion.
 Publish a deck (batch all-or-nothing operation).
 
 **Path Parameters:**
+
 - `deckId`: UUID of the deck
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "success": true,
@@ -219,7 +243,9 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Validation errors prevent publication
+
 ```json
 {
   "success": false,
@@ -237,11 +263,13 @@ Authorization: Bearer <jwt_token>
   ]
 }
 ```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Deck not found or not owned by user
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Calls database RPC function `publish_deck(deck_id)`
 - Validates:
   - Deck is owned by authenticated user
@@ -262,15 +290,18 @@ Authorization: Bearer <jwt_token>
 Reject a draft deck with optional reason.
 
 **Path Parameters:**
+
 - `deckId`: UUID of the deck
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "reason": "string (optional, max 500 characters)"
@@ -278,6 +309,7 @@ Content-Type: application/json
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "success": true,
@@ -286,7 +318,9 @@ Content-Type: application/json
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Deck is not in draft status or reason too long
+
 ```json
 {
   "success": false,
@@ -294,11 +328,13 @@ Content-Type: application/json
   "message": "Only draft decks can be rejected"
 }
 ```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Deck not found or not owned by user
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Calls database RPC function `reject_deck(deck_id, reason)`
 - Validates deck is in `draft` status
 - Sets `status = 'rejected'`, `rejected_at = NOW()`, and stores optional `rejected_reason`
@@ -313,18 +349,22 @@ Content-Type: application/json
 List all cards in a specific deck.
 
 **Path Parameters:**
+
 - `deckId`: UUID of the deck
 
 **Query Parameters:**
+
 - `limit` (optional): Number of items per page (default: 100, max: 100)
 - `offset` (optional): Pagination offset (default: 0)
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "data": [
@@ -351,11 +391,13 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Error Responses:**
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Deck not found or not owned by user
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Returns cards ordered by `position ASC`
 - Excludes soft-deleted cards (`deleted_at IS NULL`)
 - User must own the deck (enforced by RLS)
@@ -367,15 +409,18 @@ Authorization: Bearer <jwt_token>
 Add a new card manually to a draft deck.
 
 **Path Parameters:**
+
 - `deckId`: UUID of the deck
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "front": "string (1-200 characters, required)",
@@ -386,6 +431,7 @@ Content-Type: application/json
 ```
 
 **Response 201 Created:**
+
 ```json
 {
   "id": "uuid",
@@ -403,7 +449,9 @@ Content-Type: application/json
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Validation errors
+
 ```json
 {
   "error": "validation_error",
@@ -416,7 +464,9 @@ Content-Type: application/json
   }
 }
 ```
+
 - `400 Bad Request`: Deck has reached maximum card limit (20)
+
 ```json
 {
   "error": "card_limit_reached",
@@ -425,19 +475,23 @@ Content-Type: application/json
   "max_count": 20
 }
 ```
+
 - `400 Bad Request`: Deck is not in draft status
+
 ```json
 {
   "error": "deck_not_editable",
   "message": "Cards can only be added to draft decks"
 }
 ```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Deck not found or not owned by user
 - `409 Conflict`: Position already exists in deck
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Only draft decks (`status = 'draft'`) can have cards added
 - Deck must have < 20 cards
 - Position must be unique within the deck (enforced by DB unique index)
@@ -451,15 +505,18 @@ Content-Type: application/json
 Update a card's front, back, position, or hint (only for cards in draft decks).
 
 **Path Parameters:**
+
 - `cardId`: UUID of the card
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "front": "string (1-200 characters, optional)",
@@ -470,6 +527,7 @@ Content-Type: application/json
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "id": "uuid",
@@ -487,20 +545,24 @@ Content-Type: application/json
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Validation errors (field too long, invalid position, etc.)
 - `400 Bad Request`: Card's deck is not in draft status
+
 ```json
 {
   "error": "card_not_editable",
   "message": "Cards in published decks cannot be edited"
 }
 ```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Card not found or deck not owned by user
 - `409 Conflict`: Position already exists in deck (if position changed)
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Card's deck must be in `draft` status (verified via JOIN with decks table)
 - RLS policy ensures user owns the deck
 - Position uniqueness enforced by DB partial unique index
@@ -513,9 +575,11 @@ Content-Type: application/json
 Soft-delete a card (only for cards in draft decks).
 
 **Path Parameters:**
+
 - `cardId`: UUID of the card
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
@@ -524,18 +588,22 @@ Authorization: Bearer <jwt_token>
 No body returned on successful deletion.
 
 **Error Responses:**
+
 - `400 Bad Request`: Card's deck is not in draft status
+
 ```json
 {
   "error": "card_not_deletable",
   "message": "Cards in published decks cannot be deleted"
 }
 ```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Card not found or deck not owned by user
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Sets `deleted_at = NOW()` on the card
 - Card's deck must be in `draft` status
 - RLS policy ensures user owns the deck
@@ -550,12 +618,14 @@ No body returned on successful deletion.
 Initiate AI generation of flashcards from source text.
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "source_text": "string (1-10,000 characters, required)",
@@ -564,6 +634,7 @@ Content-Type: application/json
 ```
 
 **Response 202 Accepted:**
+
 ```json
 {
   "generation_session_id": "uuid",
@@ -574,7 +645,9 @@ Content-Type: application/json
 ```
 
 **Error Responses:**
+
 - `400 Bad Request`: Validation errors
+
 ```json
 {
   "error": "validation_error",
@@ -586,7 +659,9 @@ Content-Type: application/json
   }
 }
 ```
+
 - `400 Bad Request`: User already has an active generation
+
 ```json
 {
   "error": "generation_in_progress",
@@ -594,10 +669,12 @@ Content-Type: application/json
   "active_session_id": "uuid"
 }
 ```
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 1. Validate `source_text` length (1-10,000 chars)
 2. Check for existing `in_progress` generation for user (enforced by DB unique index)
 3. Sanitize input:
@@ -615,6 +692,7 @@ Content-Type: application/json
 10. Return 202 Accepted immediately (client polls for status)
 
 **OpenRouter Integration:**
+
 - Backend-only (never expose API key to client)
 - Prompt includes:
   - Max 20 cards
@@ -630,14 +708,17 @@ Content-Type: application/json
 Get the status and results of a generation session.
 
 **Path Parameters:**
+
 - `sessionId`: UUID of the generation session
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK (in_progress):**
+
 ```json
 {
   "id": "uuid",
@@ -657,6 +738,7 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK (completed):**
+
 ```json
 {
   "id": "uuid",
@@ -676,6 +758,7 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK (failed/timeout):**
+
 ```json
 {
   "id": "uuid",
@@ -695,11 +778,13 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Error Responses:**
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `404 Not Found`: Generation session not found or not owned by user
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - User can only view their own generation sessions (enforced by RLS)
 - Client polls this endpoint to check generation progress
 - `sanitized_source_text` is NOT returned (stored for audit, not for display)
@@ -712,16 +797,19 @@ Authorization: Bearer <jwt_token>
 List all generation sessions for the authenticated user.
 
 **Query Parameters:**
+
 - `limit` (optional): Number of items per page (default: 20, max: 100)
 - `offset` (optional): Pagination offset (default: 0)
 - `status` (optional): Filter by status (`in_progress`, `completed`, `failed`, `timeout`)
 
 **Request Headers:**
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 **Response 200 OK:**
+
 ```json
 {
   "data": [
@@ -745,10 +833,12 @@ Authorization: Bearer <jwt_token>
 ```
 
 **Error Responses:**
+
 - `401 Unauthorized`: Missing or invalid JWT token
 - `500 Internal Server Error`: Generic server error
 
 **Business Logic:**
+
 - Returns sessions ordered by `created_at DESC`
 - Includes basic deck info (name) via JOIN
 - Useful for viewing generation history
@@ -762,10 +852,12 @@ Authorization: Bearer <jwt_token>
 **Provider:** Supabase GoTrue (email/password authentication)
 
 **Implementation:**
+
 - Client-side: Supabase JavaScript client handles signup, login, logout, session management
 - API-side: All endpoints verify JWT token via Supabase middleware
 
 **Token Flow:**
+
 1. User signs up or logs in via Supabase client SDK
 2. Supabase returns JWT token (stored in client localStorage or cookies)
 3. Client includes token in `Authorization: Bearer <token>` header for all API requests
@@ -773,6 +865,7 @@ Authorization: Bearer <jwt_token>
 5. Middleware extracts `user_id` from token and sets `locals.user` for endpoint handlers
 
 **Session Management:**
+
 - JWT expiration: Configured in Supabase (default: 1 hour access token, 7 days refresh token)
 - Auto-refresh: Handled by Supabase client SDK
 - Logout: Client calls Supabase `signOut()` and removes tokens
@@ -784,23 +877,27 @@ Authorization: Bearer <jwt_token>
 All tables (`decks`, `cards`, `generation_sessions`) have RLS enabled with **deny-by-default** strategy:
 
 **Decks:**
+
 - SELECT: User can view their own decks (`user_id = auth.uid()` AND `deleted_at IS NULL`)
 - INSERT: User can create decks with themselves as owner (`user_id = auth.uid()` AND `status = 'draft'`)
 - UPDATE: User can update their own draft decks (`status = 'draft'`)
 - DELETE (soft): User can soft-delete their own decks
 
 **Cards:**
+
 - SELECT: User can view cards from their own decks
 - INSERT: User can add cards to their own draft decks
 - UPDATE: User can update cards in their own draft decks
 - DELETE (soft): User can soft-delete cards in their own draft decks
 
 **Generation Sessions:**
+
 - SELECT: User can view their own sessions (`user_id = auth.uid()`)
 - INSERT: Backend creates sessions with service role (no public INSERT policy)
 - UPDATE: Backend updates sessions with service role (no public UPDATE policy)
 
 **API-Level Validation:**
+
 - All endpoints verify JWT token via middleware before processing
 - Endpoints perform additional business logic checks (e.g., deck status for edits)
 - RLS policies provide defense-in-depth (even if API logic has bugs, DB enforces ownership)
@@ -814,6 +911,7 @@ To prevent information leakage, all user-facing error messages are generic:
 - ❌ Bad: "Database constraint violation: duplicate key value violates unique constraint 'idx_decks_user_name_unique'"
 
 **Error Response Format:**
+
 ```json
 {
   "error": "error_code",
@@ -822,6 +920,7 @@ To prevent information leakage, all user-facing error messages are generic:
 ```
 
 **Logging:**
+
 - Detailed errors logged server-side for debugging
 - Only generic messages returned to client
 
@@ -833,35 +932,35 @@ To prevent information leakage, all user-facing error messages are generic:
 
 #### Decks
 
-| Field | Validation | Enforced By |
-|-------|-----------|-------------|
-| `name` | NOT NULL, 1-100 characters | Zod + DB CHECK |
-| `name` | Unique per user (case-insensitive, excluding deleted) | DB partial unique index |
-| `slug` | Auto-generated from name | DB trigger |
-| `status` | IN ('draft', 'published', 'rejected') | DB CHECK |
-| `rejected_reason` | NULL or ≤500 characters | Zod + DB CHECK |
-| `user_id` | Must be authenticated user | RLS policy |
+| Field             | Validation                                            | Enforced By             |
+| ----------------- | ----------------------------------------------------- | ----------------------- |
+| `name`            | NOT NULL, 1-100 characters                            | Zod + DB CHECK          |
+| `name`            | Unique per user (case-insensitive, excluding deleted) | DB partial unique index |
+| `slug`            | Auto-generated from name                              | DB trigger              |
+| `status`          | IN ('draft', 'published', 'rejected')                 | DB CHECK                |
+| `rejected_reason` | NULL or ≤500 characters                               | Zod + DB CHECK          |
+| `user_id`         | Must be authenticated user                            | RLS policy              |
 
 #### Cards
 
-| Field | Validation | Enforced By |
-|-------|-----------|-------------|
-| `front` | NOT NULL, 1-200 characters | Zod + DB CHECK |
-| `back` | NOT NULL, 1-200 characters | Zod + DB CHECK |
-| `position` | INTEGER > 0 | DB CHECK |
-| `position` | Unique within deck (excluding deleted) | DB partial unique index |
-| `hint` | NULL or ≤200 characters | Zod + DB CHECK |
-| `deck_id` | Must reference existing deck owned by user | RLS policy + FK constraint |
+| Field      | Validation                                 | Enforced By                |
+| ---------- | ------------------------------------------ | -------------------------- |
+| `front`    | NOT NULL, 1-200 characters                 | Zod + DB CHECK             |
+| `back`     | NOT NULL, 1-200 characters                 | Zod + DB CHECK             |
+| `position` | INTEGER > 0                                | DB CHECK                   |
+| `position` | Unique within deck (excluding deleted)     | DB partial unique index    |
+| `hint`     | NULL or ≤200 characters                    | Zod + DB CHECK             |
+| `deck_id`  | Must reference existing deck owned by user | RLS policy + FK constraint |
 
 #### Generation Sessions
 
-| Field | Validation | Enforced By |
-|-------|-----------|-------------|
-| `sanitized_source_text` | NOT NULL, ≤10,000 characters | Zod + DB CHECK |
-| `status` | IN ('in_progress', 'completed', 'failed', 'timeout') | DB CHECK |
-| `truncated_count` | NULL or ≥0 | DB CHECK |
-| `error_message` | NULL or ≤1,000 characters | DB CHECK |
-| `user_id` | Only 1 'in_progress' session per user | DB partial unique index |
+| Field                   | Validation                                           | Enforced By             |
+| ----------------------- | ---------------------------------------------------- | ----------------------- |
+| `sanitized_source_text` | NOT NULL, ≤10,000 characters                         | Zod + DB CHECK          |
+| `status`                | IN ('in_progress', 'completed', 'failed', 'timeout') | DB CHECK                |
+| `truncated_count`       | NULL or ≥0                                           | DB CHECK                |
+| `error_message`         | NULL or ≤1,000 characters                            | DB CHECK                |
+| `user_id`               | Only 1 'in_progress' session per user                | DB partial unique index |
 
 ### 4.2 Business Logic Implementation
 
@@ -870,6 +969,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** Cards and decks can only be edited when `deck.status = 'draft'`
 
 **Implementation:**
+
 - `PATCH /api/decks/:deckId`: Check `status = 'draft'` before allowing update
 - `POST /api/decks/:deckId/cards`: Check `status = 'draft'` via JOIN with decks table
 - `PATCH /api/cards/:cardId`: Check parent deck's `status = 'draft'` via JOIN
@@ -877,6 +977,7 @@ To prevent information leakage, all user-facing error messages are generic:
 - RLS policies enforce this at DB level
 
 **Error Response:**
+
 ```json
 {
   "error": "deck_not_editable",
@@ -891,6 +992,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** Deck can only be published if ALL cards pass validation
 
 **Implementation:**
+
 - `POST /api/decks/:deckId/publish` calls DB RPC function `publish_deck(deck_id)`
 - RPC function validates:
   1. Deck is owned by user (`user_id = auth.uid()`)
@@ -905,6 +1007,7 @@ To prevent information leakage, all user-facing error messages are generic:
 - Uses advisory lock to prevent race conditions
 
 **Success Response:**
+
 ```json
 {
   "success": true,
@@ -913,6 +1016,7 @@ To prevent information leakage, all user-facing error messages are generic:
 ```
 
 **Validation Error Response:**
+
 ```json
 {
   "success": false,
@@ -929,6 +1033,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** Deck cannot exceed 20 cards
 
 **Implementation:**
+
 - `POST /api/decks/:deckId/cards`: Check `COUNT(*) < 20` before inserting
 - `POST /api/generations`: Backend truncates LLM output to first 20 cards
   - Sets `truncated_count` = number of cards discarded
@@ -936,6 +1041,7 @@ To prevent information leakage, all user-facing error messages are generic:
 - `POST /api/decks/:deckId/publish`: RPC function hard-deletes cards beyond position 20
 
 **Error Response (manual add):**
+
 ```json
 {
   "error": "card_limit_reached",
@@ -952,11 +1058,13 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** User can only have one active generation session at a time
 
 **Implementation:**
+
 - DB partial unique index: `CREATE UNIQUE INDEX idx_gen_sessions_user_in_progress ON generation_sessions(user_id) WHERE status = 'in_progress'`
 - `POST /api/generations`: Check for existing `in_progress` session before creating new one
 - If user tries to start new generation while one is active, return error
 
 **Error Response:**
+
 ```json
 {
   "error": "generation_in_progress",
@@ -972,6 +1080,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** AI generation must complete within 5 minutes
 
 **Implementation:**
+
 - Backend sets timeout on OpenRouter API call
 - After 5 minutes, if not completed:
   - Cancel LLM request
@@ -980,6 +1089,7 @@ To prevent information leakage, all user-facing error messages are generic:
 - Client can retry by initiating new generation
 
 **Timeout Response (via polling):**
+
 ```json
 {
   "id": "uuid",
@@ -996,12 +1106,14 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** Deck names must be unique per user (case-insensitive, excluding soft-deleted)
 
 **Implementation:**
+
 - DB partial unique index: `CREATE UNIQUE INDEX idx_decks_user_name_unique ON decks(user_id, LOWER(name)) WHERE deleted_at IS NULL`
 - `POST /api/generations`: Check uniqueness if `deck_name` provided
 - `PATCH /api/decks/:deckId`: Check uniqueness before updating name
 - After soft-delete, name becomes available for reuse
 
 **Error Response:**
+
 ```json
 {
   "error": "validation_error",
@@ -1020,6 +1132,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** Slug is automatically generated from deck name
 
 **Implementation:**
+
 - DB trigger `set_deck_slug` fires on INSERT or UPDATE of `name`
 - Slug generation function `slugify()`:
   - Convert to lowercase
@@ -1030,6 +1143,7 @@ To prevent information leakage, all user-facing error messages are generic:
 - Slug updates automatically when name changes
 
 **Example:**
+
 - Name: "Biology Exam 2024" → Slug: "biology-exam-2024"
 - Name: "Français 101!" → Slug: "francais-101"
 
@@ -1040,6 +1154,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** When deck is soft-deleted, all its cards are also soft-deleted
 
 **Implementation:**
+
 - DB trigger `cascade_soft_delete_cards` fires AFTER UPDATE of `decks.deleted_at`
 - When `deleted_at` changes from NULL to timestamp:
   - Updates all cards in deck: `SET deleted_at = NEW.deleted_at WHERE deck_id = NEW.id`
@@ -1053,12 +1168,14 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** Card positions must be unique within a deck (excluding soft-deleted)
 
 **Implementation:**
+
 - DB partial unique index: `CREATE UNIQUE INDEX idx_cards_deck_position_unique ON cards(deck_id, position) WHERE deleted_at IS NULL`
 - `POST /api/decks/:deckId/cards`: If position not provided, auto-assign to `MAX(position) + 1`
 - `PATCH /api/cards/:cardId`: Position change validated by unique index
 - Position normalization (removing gaps) is handled by client, not API
 
 **Error Response:**
+
 ```json
 {
   "error": "conflict",
@@ -1077,6 +1194,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** Published decks and their cards are read-only
 
 **Implementation:**
+
 - RLS policies enforce at DB level:
   - UPDATE policies on `decks` require `status = 'draft'`
   - UPDATE/DELETE policies on `cards` require parent deck `status = 'draft'`
@@ -1084,6 +1202,7 @@ To prevent information leakage, all user-facing error messages are generic:
 - Only `DELETE /api/decks/:deckId` (soft-delete entire deck) is allowed on published decks
 
 **Error Response:**
+
 ```json
 {
   "error": "deck_not_editable",
@@ -1098,6 +1217,7 @@ To prevent information leakage, all user-facing error messages are generic:
 **Rule:** All text inputs are sanitized before processing
 
 **Implementation:**
+
 - `POST /api/generations`:
   - Strip HTML tags from `source_text`
   - Normalize whitespace (collapse multiple spaces/newlines)
@@ -1117,44 +1237,49 @@ To prevent information leakage, all user-facing error messages are generic:
 All request bodies are validated using Zod schemas before processing:
 
 **Deck Update Schema:**
+
 ```typescript
 const DeckUpdateSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional()
+  name: z.string().trim().min(1).max(100).optional(),
 });
 ```
 
 **Card Create Schema:**
+
 ```typescript
 const CardCreateSchema = z.object({
   front: z.string().trim().min(1).max(200),
   back: z.string().trim().min(1).max(200),
   position: z.number().int().positive().optional(),
-  hint: z.string().trim().max(200).nullable().optional()
+  hint: z.string().trim().max(200).nullable().optional(),
 });
 ```
 
 **Card Update Schema:**
+
 ```typescript
 const CardUpdateSchema = z.object({
   front: z.string().trim().min(1).max(200).optional(),
   back: z.string().trim().min(1).max(200).optional(),
   position: z.number().int().positive().optional(),
-  hint: z.string().trim().max(200).nullable().optional()
+  hint: z.string().trim().max(200).nullable().optional(),
 });
 ```
 
 **Generation Create Schema:**
+
 ```typescript
 const GenerationCreateSchema = z.object({
   source_text: z.string().trim().min(1).max(10000),
-  deck_name: z.string().trim().min(1).max(100).optional()
+  deck_name: z.string().trim().min(1).max(100).optional(),
 });
 ```
 
 **Deck Reject Schema:**
+
 ```typescript
 const DeckRejectSchema = z.object({
-  reason: z.string().trim().max(500).optional()
+  reason: z.string().trim().max(500).optional(),
 });
 ```
 
@@ -1164,22 +1289,22 @@ const DeckRejectSchema = z.object({
 
 Standard error codes used across all endpoints:
 
-| Error Code | HTTP Status | Description |
-|------------|-------------|-------------|
-| `validation_error` | 400 | Request body failed Zod validation |
-| `deck_not_found` | 404 | Deck does not exist or not owned by user |
-| `card_not_found` | 404 | Card does not exist or deck not owned by user |
-| `generation_not_found` | 404 | Generation session does not exist or not owned by user |
-| `deck_not_draft` | 400 | Operation requires deck to be in draft status |
-| `deck_not_editable` | 400 | Published decks cannot be edited |
-| `card_not_editable` | 400 | Cards in published decks cannot be edited |
-| `card_not_deletable` | 400 | Cards in published decks cannot be deleted |
-| `card_limit_reached` | 400 | Deck already has 20 cards (maximum) |
-| `generation_in_progress` | 400 | User already has an active generation session |
-| `invalid_card_count` | 400 | Deck must have 1-20 cards for publication |
-| `conflict` | 409 | Uniqueness constraint violation (name, position) |
-| `unauthorized` | 401 | Missing or invalid JWT token |
-| `internal_error` | 500 | Generic server error (details logged, not exposed) |
+| Error Code               | HTTP Status | Description                                            |
+| ------------------------ | ----------- | ------------------------------------------------------ |
+| `validation_error`       | 400         | Request body failed Zod validation                     |
+| `deck_not_found`         | 404         | Deck does not exist or not owned by user               |
+| `card_not_found`         | 404         | Card does not exist or deck not owned by user          |
+| `generation_not_found`   | 404         | Generation session does not exist or not owned by user |
+| `deck_not_draft`         | 400         | Operation requires deck to be in draft status          |
+| `deck_not_editable`      | 400         | Published decks cannot be edited                       |
+| `card_not_editable`      | 400         | Cards in published decks cannot be edited              |
+| `card_not_deletable`     | 400         | Cards in published decks cannot be deleted             |
+| `card_limit_reached`     | 400         | Deck already has 20 cards (maximum)                    |
+| `generation_in_progress` | 400         | User already has an active generation session          |
+| `invalid_card_count`     | 400         | Deck must have 1-20 cards for publication              |
+| `conflict`               | 409         | Uniqueness constraint violation (name, position)       |
+| `unauthorized`           | 401         | Missing or invalid JWT token                           |
+| `internal_error`         | 500         | Generic server error (details logged, not exposed)     |
 
 ---
 
@@ -1196,21 +1321,25 @@ Rate limiting is **not implemented in MVP** but planned for post-MVP:
 ### 5.2 Performance Considerations
 
 **Pagination:**
+
 - All list endpoints support `limit` and `offset` parameters
 - Default limits: 20-100 items per page depending on resource
 - Total count included in pagination metadata
 
 **Indexes:**
+
 - All foreign keys have indexes for efficient JOINs
 - Partial indexes for common queries (non-deleted items only)
 - Composite indexes for frequent filter+sort combinations
 
 **Database Query Optimization:**
+
 - Use RLS policies for security, but avoid N+1 queries
 - Fetch related data in single query with JOINs where appropriate
 - Index on `(user_id, status, updated_at)` for deck listings
 
 **Caching:**
+
 - Not implemented in MVP
 - Future: Cache published deck data (immutable after publication)
 
@@ -1219,19 +1348,24 @@ Rate limiting is **not implemented in MVP** but planned for post-MVP:
 ## 6. CORS Configuration
 
 **Allowed Origins:**
+
 - Production: `https://10x-cards.example.com`
 - Development: `http://localhost:4321`, `http://localhost:3000`
 
 **Allowed Methods:**
+
 - `GET`, `POST`, `PATCH`, `DELETE`, `OPTIONS`
 
 **Allowed Headers:**
+
 - `Authorization`, `Content-Type`
 
 **Credentials:**
+
 - `Access-Control-Allow-Credentials: true` (for cookie-based sessions if needed)
 
 **Implementation:**
+
 - Configured in Astro middleware
 - Rejects requests from unauthorized origins with 403
 
@@ -1242,6 +1376,7 @@ Rate limiting is **not implemented in MVP** but planned for post-MVP:
 **Current Version:** v1 (implicit, no version prefix in URLs)
 
 **Future Versioning Strategy:**
+
 - When breaking changes are needed, introduce `/api/v2/` prefix
 - Maintain v1 endpoints for backward compatibility (minimum 6 months)
 - Deprecation notices returned in response headers: `X-API-Deprecation: true`
@@ -1251,17 +1386,20 @@ Rate limiting is **not implemented in MVP** but planned for post-MVP:
 ## 8. Monitoring and Observability (Post-MVP)
 
 **Logging:**
+
 - Structured JSON logs for all API requests
 - Include: timestamp, user_id, endpoint, method, status_code, duration
 - PII masking: Never log full card content, sanitized_source_text, or passwords
 
 **Metrics:**
+
 - Request count by endpoint
 - Error rate by endpoint and error code
 - Generation success/failure/timeout rates
 - P50/P95/P99 latency by endpoint
 
 **Error Tracking:**
+
 - Server-side: Centralized logging (Sentry/similar)
 - Client-side: Frontend telemetry (not in API scope)
 
@@ -1280,6 +1418,7 @@ This API plan provides:
 ✅ **Security-first approach** with generic errors, CORS, and deny-by-default RLS
 
 **Technology Stack:**
+
 - **Frontend:** Astro 5 + React 19
 - **Backend:** Astro server endpoints (SSR)
 - **Database:** PostgreSQL (Supabase self-hosted)
@@ -1288,6 +1427,7 @@ This API plan provides:
 - **AI:** OpenRouter (backend-only)
 
 **Next Steps:**
+
 1. Implement Supabase database schema and RLS policies from `db-plan.md`
 2. Set up Astro middleware for JWT validation
 3. Create API endpoints per this plan
