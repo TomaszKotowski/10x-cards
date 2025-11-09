@@ -1,4 +1,3 @@
-import { DEFAULT_USER_ID } from "@/db/supabase.client";
 import { listDecksQuerySchema } from "@/lib/schemas/deck.schema";
 import { listUserDecks } from "@/lib/services/deck.service";
 import { listUserDecksMock } from "@/lib/services/deck.service.mock";
@@ -27,24 +26,25 @@ export const prerender = false;
  * - 500: Internal server error
  */
 export async function GET(context: APIContext): Promise<Response> {
-  // Guard: Check Supabase client availability (required for real mode)
   const useMockData = import.meta.env.USE_MOCK_DATA === "true";
-  if (!useMockData && !context.locals.supabase) {
+
+  // Guard: Check authentication (required for real mode)
+  if (!useMockData && !context.locals.user) {
     const errorResponse: ApiErrorResponseDTO = {
-      error: "internal_server_error",
-      message: "Database connection not available",
+      error: "unauthorized",
+      message: "Authentication required",
     };
     return new Response(JSON.stringify(errorResponse), {
-      status: 500,
+      status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  // Guard: Check user ID is available
-  if (!useMockData && !DEFAULT_USER_ID) {
+  // Guard: Check Supabase client availability (required for real mode)
+  if (!useMockData && !context.locals.supabase) {
     const errorResponse: ApiErrorResponseDTO = {
       error: "internal_server_error",
-      message: "DEFAULT_USER_ID not configured",
+      message: "Database connection not available",
     };
     return new Response(JSON.stringify(errorResponse), {
       status: 500,
@@ -64,12 +64,15 @@ export async function GET(context: APIContext): Promise<Response> {
 
     const params = listDecksQuerySchema.parse(rawParams);
 
+    // Get user ID (guaranteed to exist due to guard clause above)
+    const userId = useMockData ? "00000000-0000-0000-0000-000000000001" : context.locals.user?.id;
+
     // Fetch decks from service layer (mock or real based on env)
     const result = useMockData
       ? await listUserDecksMock({ status: params.status }, { limit: params.limit, offset: params.offset }, params.sort)
       : await listUserDecks(
           context.locals.supabase,
-          DEFAULT_USER_ID || "",
+          userId as string,
           { status: params.status },
           { limit: params.limit, offset: params.offset },
           params.sort
