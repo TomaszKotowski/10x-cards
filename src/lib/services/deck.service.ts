@@ -1,6 +1,6 @@
 import type { Database } from "@/db/database.types";
 import type { ListDecksQuery } from "@/lib/schemas/deck.schema";
-import type { DeckListItemDTO } from "@/types";
+import type { DeckDetailDTO, DeckListItemDTO } from "@/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -139,4 +139,69 @@ async function getCardCounts(supabase: TypedSupabaseClient, deckIds: string[]): 
   });
 
   return counts;
+}
+
+/**
+ * Retrieves a single deck by ID with card count.
+ *
+ * @param supabase - Authenticated Supabase client instance
+ * @param deckId - UUID of the deck to retrieve
+ * @param userId - UUID of the user who owns the deck
+ * @returns Promise with deck details or null if not found
+ *
+ * @throws Error if database query fails
+ *
+ * @example
+ * ```typescript
+ * const deck = await getDeckById(
+ *   supabase,
+ *   "550e8400-e29b-41d4-a716-446655440000",
+ *   "user-uuid"
+ * );
+ * ```
+ */
+export async function getDeckById(
+  supabase: TypedSupabaseClient,
+  deckId: string,
+  userId: string
+): Promise<DeckDetailDTO | null> {
+  // Query deck with user isolation and soft-delete filter
+  const { data: deck, error } = await supabase
+    .from("decks")
+    .select("*")
+    .eq("id", deckId)
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .single();
+
+  // Return null if deck not found or error occurred
+  if (error || !deck) {
+    return null;
+  }
+
+  // Get card count for the deck
+  const { count, error: countError } = await supabase
+    .from("cards")
+    .select("*", { count: "exact", head: true })
+    .eq("deck_id", deckId)
+    .is("deleted_at", null);
+
+  // Log error but continue with count = 0 if card count fails
+  if (countError) {
+    console.error("Failed to fetch card count:", countError);
+  }
+
+  // Map database entity to DTO
+  return {
+    id: deck.id,
+    name: deck.name,
+    slug: deck.slug,
+    status: deck.status as "draft" | "published" | "rejected",
+    published_at: deck.published_at,
+    rejected_at: deck.rejected_at,
+    rejected_reason: deck.rejected_reason,
+    card_count: count ?? 0,
+    created_at: deck.created_at,
+    updated_at: deck.updated_at,
+  };
 }

@@ -1,4 +1,4 @@
-import type { DeckListItemDTO } from "@/types";
+import type { DeckDetailDTO, DeckListItemDTO } from "@/types";
 import type { ListDecksQuery } from "@/lib/schemas/deck.schema";
 
 /**
@@ -167,4 +167,27 @@ export async function listUserDecksMock(
     data: paginatedDecks,
     total,
   };
+}
+
+/**
+ * Mock implementation of getDeckById for development/testing.
+ * Simulates fetching a single deck by ID without database access.
+ *
+ * @param deckId - UUID of the deck to retrieve
+ * @returns Promise with deck details or null if not found
+ */
+export async function getDeckByIdMock(deckId: string): Promise<DeckDetailDTO | null> {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // Find deck in mock data
+  const deck = MOCK_DECKS.find((d) => d.id === deckId);
+
+  // Return null if not found (simulates 404)
+  if (!deck) {
+    return null;
+  }
+
+  // Return deck as DeckDetailDTO (currently same as DeckListItemDTO)
+  return deck;
 }

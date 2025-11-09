@@ -23,3 +23,18 @@ export const listDecksQuerySchema = z.object({
  * Inferred TypeScript type from the validation schema.
  */
 export type ListDecksQuery = z.infer<typeof listDecksQuerySchema>;
+
+/**
+ * Validation schema for GET /api/decks/:deckId path parameters.
+ *
+ * Validates:
+ * - deckId: Must be a valid UUID format
+ */
+export const DeckIdParamSchema = z.object({
+  deckId: z.string().uuid({ message: "Invalid deck ID format" }),
+});
+
+/**
+ * Inferred TypeScript type for deck ID parameter.
+ */
+export type DeckIdParam = z.infer<typeof DeckIdParamSchema>;
