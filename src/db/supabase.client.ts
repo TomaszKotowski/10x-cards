@@ -4,5 +4,6 @@ import type { Database } from "./database.types.ts";
 
 const supabaseUrl = import.meta.env.SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.SUPABASE_KEY;
+export const DEFAULT_USER_ID = import.meta.env.DEFAULT_USER_ID;
 
 export const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey);
