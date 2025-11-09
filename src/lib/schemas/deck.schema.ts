@@ -58,3 +58,18 @@ export const updateDeckSchema = z
  * Inferred TypeScript type for update deck request body.
  */
 export type UpdateDeckBody = z.infer<typeof updateDeckSchema>;
+
+/**
+ * Validation schema for POST /api/decks/:deckId/publish path parameters.
+ *
+ * Validates:
+ * - deckId: Must be a valid UUID format
+ */
+export const publishDeckParamsSchema = z.object({
+  deckId: z.string().uuid({ message: "Invalid deck ID format" }),
+});
+
+/**
+ * Inferred TypeScript type for publish deck parameters.
+ */
+export type PublishDeckParams = z.infer<typeof publishDeckParamsSchema>;

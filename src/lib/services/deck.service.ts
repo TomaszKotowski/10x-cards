@@ -1,6 +1,12 @@
 import type { Database } from "@/db/database.types";
 import type { ListDecksQuery } from "@/lib/schemas/deck.schema";
-import type { DeckDetailDTO, DeckListItemDTO, UpdateDeckCommand } from "@/types";
+import type {
+  DeckDetailDTO,
+  DeckListItemDTO,
+  PublishDeckErrorResponseDTO,
+  PublishDeckSuccessResponseDTO,
+  UpdateDeckCommand,
+} from "@/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -14,6 +20,17 @@ type TypedSupabaseClient = SupabaseClient<Database>;
 interface ListUserDecksResult {
   data: DeckListItemDTO[];
   total: number;
+}
+
+/**
+ * Result type from the publish_deck RPC function.
+ * This matches the JSONB structure returned by the database function.
+ */
+interface PublishDeckRpcResult {
+  success: boolean;
+  error?: string;
+  card_count?: number;
+  deck_id?: string;
 }
 
 /**
@@ -296,4 +313,88 @@ export async function updateDeck(
     created_at: updatedDeck.created_at,
     updated_at: updatedDeck.updated_at,
   };
+}
+
+/**
+ * Publishes a draft deck atomically with validations.
+ *
+ * This operation is irreversible. Once published, the deck and its cards become read-only.
+ * The function performs the following validations and operations:
+ * - Verifies deck ownership and draft status
+ * - Validates card count (must be between 1 and 20)
+ * - Validates card content length (≤200 characters per side)
+ * - Hard-deletes cards beyond position 20
+ * - Updates deck status to 'published' with timestamp
+ *
+ * @param supabase - Authenticated Supabase client instance
+ * @param deckId - UUID of the deck to publish
+ * @returns Promise with success response containing deck_id
+ *
+ * @throws Error with message "Deck not found" if deck doesn't exist or user doesn't have access
+ * @throws Error with message "Deck not draft" if deck status is not draft
+ * @throws Error with message "Invalid card count" if deck has <1 or >20 cards
+ * @throws Error with message "Validation failed" if any card exceeds length limits
+ * @throws Error if database RPC call fails
+ *
+ * @example
+ * ```typescript
+ * const result = await publishDeck(
+ *   supabase,
+ *   "550e8400-e29b-41d4-a716-446655440000"
+ * );
+ * // Returns: { success: true, deck_id: "550e8400-e29b-41d4-a716-446655440000" }
+ * ```
+ */
+export async function publishDeck(
+  supabase: TypedSupabaseClient,
+  deckId: string
+): Promise<PublishDeckSuccessResponseDTO | PublishDeckErrorResponseDTO> {
+  // Call the publish_deck RPC function
+  const { data, error } = await supabase.rpc("publish_deck", {
+    deck_id_param: deckId,
+  });
+
+  // Handle RPC execution errors
+  if (error) {
+    console.error("[DeckService.publishDeck] RPC error:", error);
+    throw new Error(`Failed to publish deck: ${error.message}`);
+  }
+
+  // Parse the JSONB result
+  const result = data as unknown as PublishDeckRpcResult;
+
+  // Handle success case
+  if (result.success && result.deck_id) {
+    return {
+      success: true,
+      deck_id: result.deck_id,
+    };
+  }
+
+  // Handle business logic errors from RPC
+  switch (result.error) {
+    case "deck_not_found":
+    case "unauthorized":
+      throw new Error("Deck not found");
+
+    case "deck_not_draft":
+      return {
+        success: false,
+        error: "deck_not_draft",
+        message: "Only draft decks can be published",
+      };
+
+    case "invalid_card_count":
+      return {
+        success: false,
+        error: "invalid_card_count",
+        message: "Deck must have between 1 and 20 cards",
+        card_count: result.card_count,
+      };
+
+    default:
+      // Unexpected error from RPC
+      console.error("[DeckService.publishDeck] Unexpected RPC error:", result.error);
+      throw new Error(`Unexpected error during deck publication: ${result.error}`);
+  }
 }
