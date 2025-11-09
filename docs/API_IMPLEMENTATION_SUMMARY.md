@@ -1,10 +1,31 @@
-# API Implementation Summary: GET /api/decks
+# API Implementation Summary
 
 ## Overview
 
-Successfully implemented the `GET /api/decks` endpoint with full mock mode support for rapid UI development.
+This document tracks the implementation status of all REST API endpoints for the 10x-cards application.
 
-## Implementation Status: ✅ Complete
+## Implementation Status
+
+### Endpoints Overview
+
+| Endpoint | Method | Status | Mock Support |
+|----------|--------|--------|--------------|
+| `/api/decks` | GET | ✅ Complete | ✅ Yes |
+| `/api/decks/:deckId` | GET | ✅ Complete | ✅ Yes |
+| `/api/decks/:deckId` | PATCH | ✅ Complete | ❌ No |
+| `/api/decks/:deckId` | DELETE | ✅ Complete | ❌ No |
+| `/api/decks/:deckId/publish` | POST | ✅ Complete | ❌ No |
+| `/api/decks/:deckId/reject` | POST | ✅ Complete | ❌ No |
+| `/api/decks/:deckId/cards` | GET | ⏳ Planned | - |
+| `/api/decks/:deckId/cards` | POST | ⏳ Planned | - |
+| `/api/cards/:cardId` | PATCH | ⏳ Planned | - |
+| `/api/cards/:cardId` | DELETE | ⏳ Planned | - |
+| `/api/generations` | POST | ⏳ Planned | - |
+| `/api/generations/:sessionId` | GET | ⏳ Planned | - |
+
+---
+
+## GET /api/decks - ✅ Complete
 
 ### Completed Components
 
@@ -253,8 +274,204 @@ curl -H "Authorization: Bearer <token>" http://localhost:4321/api/decks
 - `.env.example` - Added `USE_MOCK_DATA` documentation
 - `README.md` - Added mock mode quick start
 
+---
+
+## POST /api/decks/:deckId/reject - ✅ Complete
+
+### Overview
+
+Successfully implemented the `POST /api/decks/:deckId/reject` endpoint for rejecting draft decks with optional rejection reason.
+
+### Completed Components
+
+#### 1. **Zod Validation Schemas** (`src/lib/schemas/deck.schema.ts`)
+
+- ✅ `rejectDeckParamsSchema` - UUID validation for deckId
+- ✅ `rejectDeckBodySchema` - Optional reason field (max 500 characters)
+- ✅ Type-safe schemas with TypeScript inference
+- ✅ Clear validation error messages
+
+#### 2. **Deck Service** (`src/lib/services/deck.service.ts`)
+
+- ✅ `rejectDeck()` function with full business logic
+- ✅ RPC call to `reject_deck(deck_id_param, reason_param)`
+- ✅ JSONB result parsing and mapping to DTOs
+- ✅ Comprehensive error handling:
+  - `deck_not_found` / `unauthorized` → 404 Not Found
+  - `deck_not_draft` → 200 OK with error DTO
+  - RPC errors → 500 Internal Server Error
+- ✅ JSDoc documentation
+
+#### 3. **Database RPC Function** (`supabase/migrations/20251103073654_initial_schema.sql`)
+
+- ✅ `reject_deck(uuid, text)` function exists
+- ✅ Security definer with auth.uid() validation
+- ✅ Advisory lock for race condition prevention
+- ✅ Atomic transaction with row-level locking
+- ✅ Validates ownership, status, and existence
+- ✅ Updates: `status='rejected'`, `rejected_at=NOW()`, `rejected_reason`
+
+#### 4. **API Route Handler** (`src/pages/api/decks/[deckId]/reject.ts`)
+
+- ✅ POST endpoint with `prerender = false`
+- ✅ Authentication guard (401 Unauthorized)
+- ✅ Path parameter validation (deckId UUID)
+- ✅ Request body validation (reason max 500 chars)
+- ✅ Service layer integration
+- ✅ Comprehensive error handling:
+  - ZodError → 400 Bad Request
+  - "Deck not found" → 404 Not Found
+  - Unexpected errors → 500 Internal Server Error
+- ✅ Mock mode not supported (501 Not Implemented)
+
+### API Specification
+
+#### Request
+
+```
+POST /api/decks/:deckId/reject
+```
+
+**Headers:**
+```
+Authorization: Bearer <jwt_token>
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "reason": "Optional rejection reason (max 500 characters)"
+}
+```
+
+#### Responses
+
+**Success (200 OK):**
+```json
+{
+  "success": true,
+  "deck_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Business Logic Error (200 OK):**
+```json
+{
+  "success": false,
+  "error": "deck_not_draft",
+  "message": "Only draft decks can be rejected"
+}
+```
+
+**Validation Error (400 Bad Request):**
+```json
+{
+  "error": "validation_error",
+  "message": "Invalid deck ID format"
+}
+```
+
+or
+
+```json
+{
+  "error": "validation_error",
+  "message": "Rejection reason exceeds maximum length of 500 characters"
+}
+```
+
+**Not Found (404):**
+```json
+{
+  "error": "deck_not_found",
+  "message": "Deck not found or you don't have permission to access it"
+}
+```
+
+### Security Features
+
+- ✅ JWT token validation via middleware
+- ✅ User ownership verification in RPC function
+- ✅ Advisory lock prevents race conditions
+- ✅ Row-level locking for atomicity
+- ✅ SQL injection prevention (parameterized RPC)
+- ✅ 404 response for unauthorized access (doesn't reveal existence)
+
+### Testing
+
+#### Test Scenarios
+
+Comprehensive test scenarios documented in `.ai/reject-deck-test-scenarios.md`:
+
+1. ✅ Happy path - reject without reason
+2. ✅ Happy path - reject with reason
+3. ✅ Invalid UUID format
+4. ✅ Reason too long (>500 chars)
+5. ✅ Deck not in draft status
+6. ✅ Missing JWT token
+7. ✅ Deck doesn't exist
+8. ✅ Deck belongs to another user
+9. ✅ Edge cases (empty reason, exactly 500 chars, concurrent requests)
+
+#### Quick Test
+
+```bash
+# Reject a draft deck
+curl -X POST http://localhost:4321/api/decks/{deckId}/reject \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Cards are too difficult"}'
+```
+
+### Database Verification
+
+After successful rejection:
+
+```sql
+SELECT id, name, status, rejected_at, rejected_reason, updated_at
+FROM decks
+WHERE id = '{deckId}';
+```
+
+Expected:
+- `status` = `'rejected'`
+- `rejected_at` = timestamp (not null)
+- `rejected_reason` = provided reason or NULL
+- `updated_at` = updated timestamp
+
+### Code Quality
+
+- ✅ TypeScript strict mode - no errors
+- ✅ ESLint - no critical errors (only console.log warnings)
+- ✅ Full type safety with Zod inference
+- ✅ JSDoc documentation
+- ✅ Follows project conventions
+
+### Files Created/Modified
+
+**New Files:**
+- `src/pages/api/decks/[deckId]/reject.ts` - API route handler
+- `.ai/reject-deck-test-scenarios.md` - Test documentation
+
+**Modified Files:**
+- `src/lib/schemas/deck.schema.ts` - Added reject validation schemas
+- `src/lib/services/deck.service.ts` - Added rejectDeck() function
+- `src/types.ts` - RejectDeck types already existed
+
+---
+
 ## Conclusion
 
-The `GET /api/decks` endpoint is **production-ready** with full mock mode support for rapid UI development. The implementation follows all best practices from the plan and includes comprehensive error handling, validation, and documentation.
+The 10x-cards REST API now has **6 production-ready endpoints** for deck management:
 
-**Ready for UI implementation! 🚀**
+- ✅ GET /api/decks - List decks with filtering and pagination
+- ✅ GET /api/decks/:deckId - Get deck details
+- ✅ PATCH /api/decks/:deckId - Update deck name
+- ✅ DELETE /api/decks/:deckId - Soft-delete deck
+- ✅ POST /api/decks/:deckId/publish - Publish draft deck
+- ✅ POST /api/decks/:deckId/reject - Reject draft deck
+
+All implementations follow best practices with comprehensive error handling, validation, security, and documentation.
+
+**Ready for production use! 🚀**

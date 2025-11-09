@@ -5,6 +5,8 @@ import type {
   DeckListItemDTO,
   PublishDeckErrorResponseDTO,
   PublishDeckSuccessResponseDTO,
+  RejectDeckErrorResponseDTO,
+  RejectDeckSuccessResponseDTO,
   UpdateDeckCommand,
 } from "@/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -30,6 +32,16 @@ interface PublishDeckRpcResult {
   success: boolean;
   error?: string;
   card_count?: number;
+  deck_id?: string;
+}
+
+/**
+ * Result type from the reject_deck RPC function.
+ * This matches the JSONB structure returned by the database function.
+ */
+interface RejectDeckRpcResult {
+  success: boolean;
+  error?: string;
   deck_id?: string;
 }
 
@@ -396,5 +408,80 @@ export async function publishDeck(
       // Unexpected error from RPC
       console.error("[DeckService.publishDeck] Unexpected RPC error:", result.error);
       throw new Error(`Unexpected error during deck publication: ${result.error}`);
+  }
+}
+
+/**
+ * Rejects a draft deck with an optional reason.
+ *
+ * This operation is irreversible. Once rejected, the deck status changes to 'rejected'
+ * and the deck becomes read-only. The function performs the following operations:
+ * - Verifies deck ownership and draft status
+ * - Updates deck status to 'rejected' with timestamp
+ * - Optionally stores rejection reason (max 500 characters)
+ *
+ * @param supabase - Authenticated Supabase client instance
+ * @param deckId - UUID of the deck to reject
+ * @param reason - Optional rejection reason (max 500 characters)
+ * @returns Promise with success response containing deck_id or error response
+ *
+ * @throws Error with message "Deck not found" if deck doesn't exist or user doesn't have access
+ * @throws Error if database RPC call fails
+ *
+ * @example
+ * ```typescript
+ * const result = await rejectDeck(
+ *   supabase,
+ *   "550e8400-e29b-41d4-a716-446655440000",
+ *   "Cards are too difficult for beginners"
+ * );
+ * // Returns: { success: true, deck_id: "550e8400-e29b-41d4-a716-446655440000" }
+ * ```
+ */
+export async function rejectDeck(
+  supabase: TypedSupabaseClient,
+  deckId: string,
+  reason?: string
+): Promise<RejectDeckSuccessResponseDTO | RejectDeckErrorResponseDTO> {
+  // Call the reject_deck RPC function
+  const { data, error } = await supabase.rpc("reject_deck", {
+    deck_id_param: deckId,
+    reason_param: reason ?? undefined,
+  });
+
+  // Handle RPC execution errors
+  if (error) {
+    console.error("[DeckService.rejectDeck] RPC error:", error);
+    throw new Error(`Failed to reject deck: ${error.message}`);
+  }
+
+  // Parse the JSONB result
+  const result = data as unknown as RejectDeckRpcResult;
+
+  // Handle success case
+  if (result.success && result.deck_id) {
+    return {
+      success: true,
+      deck_id: result.deck_id,
+    };
+  }
+
+  // Handle business logic errors from RPC
+  switch (result.error) {
+    case "deck_not_found":
+    case "unauthorized":
+      throw new Error("Deck not found");
+
+    case "deck_not_draft":
+      return {
+        success: false,
+        error: "deck_not_draft",
+        message: "Only draft decks can be rejected",
+      };
+
+    default:
+      // Unexpected error from RPC
+      console.error("[DeckService.rejectDeck] Unexpected RPC error:", result.error);
+      throw new Error(`Unexpected error during deck rejection: ${result.error}`);
   }
 }

@@ -73,3 +73,33 @@ export const publishDeckParamsSchema = z.object({
  * Inferred TypeScript type for publish deck parameters.
  */
 export type PublishDeckParams = z.infer<typeof publishDeckParamsSchema>;
+
+/**
+ * Validation schema for POST /api/decks/:deckId/reject path parameters.
+ *
+ * Validates:
+ * - deckId: Must be a valid UUID format
+ */
+export const rejectDeckParamsSchema = z.object({
+  deckId: z.string().uuid({ message: "Invalid deck ID format" }),
+});
+
+/**
+ * Validation schema for POST /api/decks/:deckId/reject request body.
+ *
+ * Validates:
+ * - reason: Optional rejection reason (max 500 characters)
+ */
+export const rejectDeckBodySchema = z.object({
+  reason: z.string().max(500, "Rejection reason exceeds maximum length of 500 characters").optional(),
+});
+
+/**
+ * Inferred TypeScript type for reject deck parameters.
+ */
+export type RejectDeckParams = z.infer<typeof rejectDeckParamsSchema>;
+
+/**
+ * Inferred TypeScript type for reject deck request body.
+ */
+export type RejectDeckBody = z.infer<typeof rejectDeckBodySchema>;
