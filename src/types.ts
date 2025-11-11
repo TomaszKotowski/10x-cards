@@ -156,6 +156,21 @@ export interface CreateGenerationCommand {
   deck_name: string;
 }
 
+/**
+ * Query DTO for filtering and paginating generation sessions list.
+ * Used in GET /api/generation-sessions endpoint.
+ *
+ * All parameters are optional:
+ * - limit: Number of items per page (1-100, default: 20)
+ * - offset: Starting position for pagination (>=0, default: 0)
+ * - status: Filter by session status
+ */
+export interface GetGenerationSessionsQueryDTO {
+  limit?: number;
+  offset?: number;
+  status?: "in_progress" | "completed" | "failed" | "timeout";
+}
+
 // =============================================================================
 // Pagination Types
 // =============================================================================
