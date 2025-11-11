@@ -26,13 +26,15 @@ const generationSessionStatusSchema = z.enum(["in_progress", "completed", "faile
  * - status: Optional filter by session status
  *
  * All parameters are optional and will be coerced to appropriate types.
+ * Handles both null (missing parameter) and string values from URL search params.
  */
 export const getGenerationSessionsQuerySchema = z.object({
   limit: z
     .string()
+    .nullable()
     .optional()
     .default("20")
-    .transform((val) => parseInt(val, 10))
+    .transform((val) => parseInt(val || "20", 10))
     .pipe(
       z
         .number()
@@ -42,11 +44,17 @@ export const getGenerationSessionsQuerySchema = z.object({
     ),
   offset: z
     .string()
+    .nullable()
     .optional()
     .default("0")
-    .transform((val) => parseInt(val, 10))
+    .transform((val) => parseInt(val || "0", 10))
     .pipe(z.number().int("Offset must be an integer").min(0, "Offset must be at least 0")),
-  status: generationSessionStatusSchema.optional(),
+  status: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((val) => (val ? val : undefined))
+    .pipe(generationSessionStatusSchema.optional()),
 });
 
 /**

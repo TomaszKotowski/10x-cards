@@ -1,6 +1,7 @@
 import { DEFAULT_USER_ID } from "@/db/supabase.client";
 import { sessionIdParamSchema } from "@/lib/schemas/generation-session.schema";
 import { getSessionById } from "@/lib/services/generation-session.service";
+import { getSessionByIdMock } from "@/lib/services/generation-session.service.mock";
 import type { ApiErrorResponseDTO, GenerationSessionDTO } from "@/types";
 import type { APIContext } from "astro";
 import { z } from "zod";
@@ -87,9 +88,10 @@ export async function GET(context: APIContext): Promise<Response> {
 
     const { sessionId } = validationResult.data;
 
-    // Fetch generation session from service layer
-    // Note: Mock implementation would be added here if needed
-    const session = await getSessionById(context.locals.supabase, sessionId, userId);
+    // Fetch generation session from service layer (mock or real based on env)
+    const session = useMockData
+      ? await getSessionByIdMock(sessionId)
+      : await getSessionById(context.locals.supabase, sessionId, userId);
 
     // Guard: Check if session exists and user has access
     if (!session) {

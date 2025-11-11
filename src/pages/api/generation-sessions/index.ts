@@ -1,6 +1,7 @@
 import { DEFAULT_USER_ID } from "@/db/supabase.client";
 import { getGenerationSessionsQuerySchema } from "@/lib/schemas/generation-session.schema";
 import { listUserSessions } from "@/lib/services/generation-session.service";
+import { listUserSessionsMock } from "@/lib/services/generation-session.service.mock";
 import type { ApiErrorResponseDTO, PaginatedGenerationSessionsResponseDTO } from "@/types";
 import type { APIContext } from "astro";
 import { z } from "zod";
@@ -93,13 +94,18 @@ export async function GET(context: APIContext): Promise<Response> {
     // Get user ID (guaranteed to exist due to guard clause above)
     const userId = useMockData ? DEFAULT_USER_ID : context.locals.user?.id;
 
-    // Fetch generation sessions from service layer
-    // Note: Mock implementation would be added here if needed
-    const result = await listUserSessions(context.locals.supabase, userId as string, {
-      status: params.status,
-      limit: params.limit,
-      offset: params.offset,
-    });
+    // Fetch generation sessions from service layer (mock or real based on env)
+    const result = useMockData
+      ? await listUserSessionsMock({
+          status: params.status,
+          limit: params.limit,
+          offset: params.offset,
+        })
+      : await listUserSessions(context.locals.supabase, userId as string, {
+          status: params.status,
+          limit: params.limit,
+          offset: params.offset,
+        });
 
     // Construct response DTO
     const response: PaginatedGenerationSessionsResponseDTO = {
