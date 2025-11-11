@@ -2,8 +2,8 @@ export const prerender = false;
 
 import { DEFAULT_USER_ID } from "@/db/supabase.client";
 import { createGenerationSchema } from "@/lib/schemas/generation.schema";
-import * as GenerationService from "@/lib/services/generation.service";
 import { createDynamicSessionMock } from "@/lib/services/generation-session.service.mock";
+import * as GenerationService from "@/lib/services/generation.service";
 import type {
   ApiErrorResponseDTO,
   ConcurrentGenerationErrorResponseDTO,
@@ -177,7 +177,7 @@ export const POST: APIRoute = async (context) => {
     if (useMockData) {
       // Create mock session ID
       sessionId = "mock-session-id-" + Date.now();
-      
+
       // Create dynamic mock session (will auto-complete after 3 seconds)
       const mockSession = createDynamicSessionMock(sessionId, deckId, userId);
       startedAt = mockSession.started_at;
