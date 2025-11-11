@@ -3,11 +3,25 @@ import { z } from "zod";
 /**
  * Validation schema for sessionId path parameter.
  *
- * Validates that the sessionId is a valid UUID v4 format.
+ * Validates that the sessionId is either:
+ * - A valid UUID v4 format (production)
+ * - A mock session ID in format: mock-session-id-[timestamp] (development/mock mode)
+ *
  * Used in GET /api/generation-sessions/:sessionId endpoint.
  */
 export const sessionIdParamSchema = z.object({
-  sessionId: z.string().uuid("Invalid session ID format"),
+  sessionId: z.string().refine(
+    (val) => {
+      // Accept UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(val)) return true;
+
+      // Accept mock session ID format: mock-session-id-[timestamp]
+      const mockRegex = /^mock-session-id-\d+$/;
+      return mockRegex.test(val);
+    },
+    { message: "Invalid session ID format" }
+  ),
 });
 
 /**

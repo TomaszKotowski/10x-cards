@@ -3,6 +3,7 @@ export const prerender = false;
 import { DEFAULT_USER_ID } from "@/db/supabase.client";
 import { createGenerationSchema } from "@/lib/schemas/generation.schema";
 import * as GenerationService from "@/lib/services/generation.service";
+import { createDynamicSessionMock } from "@/lib/services/generation-session.service.mock";
 import type {
   ApiErrorResponseDTO,
   ConcurrentGenerationErrorResponseDTO,
@@ -171,26 +172,24 @@ export const POST: APIRoute = async (context) => {
     };
 
     let sessionId: string;
+    let startedAt: string;
 
     if (useMockData) {
-      // Mock session ID
+      // Create mock session ID
       sessionId = "mock-session-id-" + Date.now();
+      
+      // Create dynamic mock session (will auto-complete after 3 seconds)
+      const mockSession = createDynamicSessionMock(sessionId, deckId, userId);
+      startedAt = mockSession.started_at;
     } else {
       sessionId = await GenerationService.createGenerationSession(supabase, userId, deckId, sanitizedText, params);
+      startedAt = new Date().toISOString();
     }
-
-    const startedAt = new Date().toISOString();
 
     // =========================================================================
     // STEP 7: Initiate AI generation (async, non-blocking)
     // =========================================================================
-    if (useMockData) {
-      // Simulate async processing with mock data
-      Promise.resolve().then(() => {
-        // In mock mode, we just simulate - no actual processing
-        // The frontend will poll and get mock data
-      });
-    } else {
+    if (!useMockData) {
       // Fire and forget - don't await
       Promise.resolve().then(() => GenerationService.processAIGeneration(supabase, sessionId, sanitizedText, false));
     }

@@ -99,6 +99,50 @@ const MOCK_DECK_NAMES: Record<string, string> = {
 };
 
 /**
+ * Dynamic sessions created during runtime (e.g., from POST /api/generations).
+ * Maps session ID to session data.
+ */
+const DYNAMIC_SESSIONS = new Map<string, GenerationSessionDTO>();
+
+/**
+ * Creates a new dynamic mock session.
+ * Used by POST /api/generations to simulate session creation.
+ *
+ * @param sessionId - The session ID (e.g., mock-session-id-[timestamp])
+ * @param deckId - The deck ID
+ * @param userId - The user ID
+ * @returns The created session
+ */
+export function createDynamicSessionMock(sessionId: string, deckId: string, userId: string): GenerationSessionDTO {
+  const session: GenerationSessionDTO = {
+    id: sessionId,
+    user_id: userId,
+    deck_id: deckId,
+    status: "in_progress",
+    started_at: new Date().toISOString(),
+    finished_at: null,
+    params: { model: "openai/gpt-4o-mini", temperature: 0.7, max_cards: 20 },
+    truncated_count: null,
+    error_code: null,
+    error_message: null,
+  };
+
+  DYNAMIC_SESSIONS.set(sessionId, session);
+
+  // Simulate async completion after 3 seconds
+  setTimeout(() => {
+    const existingSession = DYNAMIC_SESSIONS.get(sessionId);
+    if (existingSession && existingSession.status === "in_progress") {
+      existingSession.status = "completed";
+      existingSession.finished_at = new Date().toISOString();
+      existingSession.truncated_count = 0;
+    }
+  }, 3000);
+
+  return session;
+}
+
+/**
  * Result type for listUserSessionsMock function.
  */
 interface ListUserSessionsResult {
@@ -109,14 +153,22 @@ interface ListUserSessionsResult {
 /**
  * Mock implementation of getSessionById.
  * Returns a single generation session by ID.
+ * Checks both static mock sessions and dynamic runtime sessions.
  *
- * @param sessionId - UUID of the session to retrieve
+ * @param sessionId - UUID or mock session ID to retrieve
  * @returns Promise with the session DTO or null if not found
  */
 export async function getSessionByIdMock(sessionId: string): Promise<GenerationSessionDTO | null> {
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 50));
 
+  // Check dynamic sessions first (for newly created sessions)
+  const dynamicSession = DYNAMIC_SESSIONS.get(sessionId);
+  if (dynamicSession) {
+    return dynamicSession;
+  }
+
+  // Fall back to static mock sessions
   const session = MOCK_SESSIONS.find((s) => s.id === sessionId);
   return session || null;
 }
