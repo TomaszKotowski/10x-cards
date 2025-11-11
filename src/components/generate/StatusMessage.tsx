@@ -4,7 +4,6 @@ import { AlertTriangle, CheckCircle, Info, XCircle } from "lucide-react";
 interface StatusMessageProps {
   status: "in_progress" | "completed" | "failed" | "timeout";
   message: string;
-  variant?: "default" | "success" | "error" | "warning";
 }
 
 /**
@@ -16,24 +15,16 @@ interface StatusMessageProps {
  * - failed: XCircle icon (error)
  * - timeout: AlertTriangle icon (warning)
  */
-export function StatusMessage({ status, message, variant }: StatusMessageProps) {
-  // Auto-determine variant from status if not provided
-  const effectiveVariant =
-    variant ||
-    (status === "completed"
-      ? "default"
-      : status === "failed"
-        ? "destructive"
-        : status === "timeout"
-          ? "destructive"
-          : "default");
+export function StatusMessage({ status, message }: StatusMessageProps) {
+  // Auto-determine variant from status
+  const variant: "default" | "destructive" = status === "failed" || status === "timeout" ? "destructive" : "default";
 
   // Select appropriate icon
   const Icon =
     status === "completed" ? CheckCircle : status === "failed" ? XCircle : status === "timeout" ? AlertTriangle : Info;
 
   return (
-    <Alert variant={effectiveVariant}>
+    <Alert variant={variant}>
       <Icon className="size-4" />
       <AlertDescription>{message}</AlertDescription>
     </Alert>

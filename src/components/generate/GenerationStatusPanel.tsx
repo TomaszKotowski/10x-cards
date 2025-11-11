@@ -22,7 +22,6 @@ interface GenerationStatusPanelProps {
  */
 export function GenerationStatusPanel({ status, onRetry, onCancel }: GenerationStatusPanelProps) {
   const isInProgress = status.state === "in_progress";
-  const isCompleted = status.state === "completed";
   const hasError = status.state === "failed" || status.state === "timeout";
 
   return (

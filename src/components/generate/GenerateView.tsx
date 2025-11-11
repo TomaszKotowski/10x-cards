@@ -79,7 +79,7 @@ export function GenerateView() {
         deckId: data.deck_id,
         startedAt: data.started_at,
       });
-    } catch (error) {
+    } catch {
       setState({
         phase: "error",
         errorType: "network_error",

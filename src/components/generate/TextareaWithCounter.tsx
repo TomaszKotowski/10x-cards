@@ -1,7 +1,7 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import type { ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
 
 interface TextareaWithCounterProps {
   value: string;
@@ -35,9 +35,22 @@ export function TextareaWithCounter({
   const isOverLimit = currentLength > maxLength;
   const counterId = "textarea-counter";
   const errorId = "textarea-error";
+  const [showError, setShowError] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value);
+  };
+
+  const handleBlur = () => {
+    if (error) {
+      setShowError(true);
+    }
+    setIsFocused(false);
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
   };
 
   return (
@@ -47,15 +60,22 @@ export function TextareaWithCounter({
         id="source-text"
         value={value}
         onChange={handleChange}
+        onBlur={handleBlur}
+        onFocus={handleFocus}
         placeholder={placeholder}
         disabled={disabled}
-        className={cn("min-h-[200px] resize-y", error && "border-destructive focus-visible:ring-destructive")}
-        aria-describedby={`${counterId} ${error ? errorId : ""}`}
+        className={cn(
+          "min-h-[200px] resize-y",
+          !isFocused && !showError && "border-input",
+          showError && "border-destructive focus-visible:ring-destructive",
+          isFocused && !showError && "border-input focus-visible:border-ring focus-visible:ring-ring/50"
+        )}
+        aria-describedby={`${counterId} ${showError ? errorId : ""}`}
         aria-invalid={!!error}
       />
       <div className="flex items-center justify-between gap-2">
         <div>
-          {error && (
+          {showError && error && (
             <p id={errorId} className="text-sm text-destructive" role="alert">
               {error}
             </p>
